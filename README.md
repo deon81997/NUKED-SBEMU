@@ -118,6 +118,8 @@
 
 <picture><img src="docs/90s/new.gif" alt="NEW!"></picture> **11/13/2026: beta.114.** **A USB MIDI cable can no longer freeze your PC!!** An M-Audio Uno froze an ASUS P5PE-VM on every USB port. In an emulated PC it never froze, so this release closes every way the USB MIDI code could hang: a device that does not take the music in half a second (three times) or keeps refusing it is now dropped - the music stops, the PC keeps running, and pulling the cable out and back in tries again. USBTEST, MIDPLAY /USB and SBEMU now write every USB MIDI step to disk before doing it (USBTEST.TXT, USBMIDI.TXT, SBDETAIL.TXT), so if a PC still freezes, the last line says exactly where; USBTEST M saves the cable's descriptors. Old firmware-loading MidiSport cables are now named and refused instead of ignored. Tested with a pretend Uno that answers exactly like a real one, on MS-DOS 7.1 with HIMEM only and with JEMM, on UHCI, OHCI, EHCI and xHCI. No slowdown (SBDIAG on a Pentium II 450: same 1%).
 
+<picture><img src="docs/90s/new.gif" alt="NEW!"></picture> **11/13/2026: beta.113.** **MENU in 3D everywhere, plus bug-hunt fixes!!** Checked with memory checkers and 30-minute soak tests (about 3000 random key presses each, no crash) in QEMU, on an emulated Pentium II 450 (86Box) and in a Windows 98 DOS box. SBEMU itself is unchanged.
+
 <picture><img src="docs/90s/new.gif" alt="NEW!"></picture> **11/13/2026: beta.112.** **USB sticks on USB 3 ports, and sticks plugged in later get every letter!!** With /USBDISK:1, sticks on a USB 3 (xHCI) controller now get their drive letters too (they run at USB 2.0 speed there). A stick plugged in after SBEMU started now fills every waiting letter: both FAT partitions of a two-partition stick, and exFAT / NTFS sticks get their own read-only waiting letters. CD images (.ISO / .CUE) on any USB letter, exFAT and NTFS included, mount in MENU > CD-ROM. USBDRV says when a waiting letter has no partition on the stick. Tested in QEMU on FreeDOS and MS-DOS 7.1, with JEMMEX, HIMEM only and 16-bit, on UHCI, OHCI, EHCI with and without companions, and xHCI: 60 of 60 runs passed. A PII-450 in 86Box shows the same CPU use as before.
 
 <picture><img src="docs/90s/new.gif" alt="NEW!"></picture> **11/13/2026: beta.111 - release candidate.** **Every menu entry checked, install and uninstall leave no trace!!** All MENU entries were run with SBEMU loaded and without, in an emulated PC and in Windows 98. UNINSTAL "Delete" now leaves the disk exactly as it was before SETUP (two text files used to stay behind), "Keep" also saves SoundFonts you put straight in C:\SC55, CLEANUP says "nothing to delete" instead of asking when there is nothing, SETUP no longer complains about MSCDEX.EXE in the public zip, and a Windows 98 DOS box no longer loads the DOS mouse driver for nothing. Every program is stamped beta.111.
@@ -429,7 +431,7 @@ something breaks please [sign my guestbook](#-sign-my-guestbook-) and tell me!
 - <picture><img src="docs/90s/ball-red.gif" width="14" alt="o"></picture> **Automatic setup** measures each ROM set on your CPU and picks the best one it can handle
 - <picture><img src="docs/90s/ball-blue.gif" width="14" alt="o"></picture> **Front panel in games**: <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>F12</kbd> shows the SC-55 / MT-32 display over the game
 - <picture><img src="docs/90s/ball-green.gif" width="14" alt="o"></picture> `MIDPLAY`: MIDI player with five pages (player, playlist, files, options, help): .MID, .KAR, .RMI and game music (Doom **.MUS**, HMI **.HMP**, Miles **.XMI**), titles and lengths read in the background, **Ctrl+F search**, sorting, .M3U / .M3U8 lists, speed 25-400%, **key change** ±12 semitones, **A-B loop**, **sleep timer**, mute/solo per channel, resume where you quit, a live SC-55 front panel and a 3D view in every VESA mode
-- <picture><img src="docs/90s/ball-red.gif" width="14" alt="o"></picture> **USB MIDI out**: a class-compliant USB MIDI cable or keyboard (M-Audio Uno, Roland UM-ONE ...) plays the music on your real synth (`/MUSB`)
+- <picture><img src="docs/90s/ball-red.gif" width="14" alt="o"></picture> **USB MIDI out**: a class-compliant USB MIDI cable or keyboard (M-Audio Uno, Roland UM-ONE ...) plays the music on your real synth (`/MUSB`), paced at real MIDI speed like a real MPU-401 (intelligent mode answered too); `SBDIAG USB` shows its state, `/MIDICAP:1` + `SBDIAG MIDICAP` record a game for a bug report
 - <picture><img src="docs/90s/ball-gold.gif" width="14" alt="o"></picture> `SC55WAV` / `SC55LOG`: render an SC-55 demo to WAV and see how fast your PC runs each ROM set
 </details>
 
@@ -439,7 +441,7 @@ something breaks please [sign my guestbook](#-sign-my-guestbook-) and tell me!
 - <picture><img src="docs/90s/ball-red.gif" width="14" alt="o"></picture> Mounts `.ISO`, `.CUE/.BIN` (raw or 2048-byte) and multi-disc games on drive **M:** (uCDD 0.9.5-a3 + SHSUCDX 3.09, both built from source)
 - <picture><img src="docs/90s/ball-blue.gif" width="14" alt="o"></picture> **M: is the first CD drive**, even when a real CD-ROM drive is there too, so games find the disc instead of your empty drive
 - <picture><img src="docs/90s/ball-green.gif" width="14" alt="o"></picture> **The drive plays CD music by itself** like a real one: play, pause, resume, track time, "busy" until the track ends, PREGAP in CUE sheets
-- <picture><img src="docs/90s/ball-gold.gif" width="14" alt="o"></picture> **CD music played through your sound card**, mixed with the game (`HYBRID.BAT`)
+- <picture><img src="docs/90s/ball-gold.gif" width="14" alt="o"></picture> **CD music played through your sound card**, mixed with the game, with the normal `SC55.BAT` / `SC55JEM.BAT` (volume in SETTINGS)
 - <picture><img src="docs/90s/ball-red.gif" width="14" alt="o"></picture> Swap discs while SBEMU runs; the music stops when a disc comes out
 - <picture><img src="docs/90s/ball-blue.gif" width="14" alt="o"></picture> CD images screen: disc label and date, track list with lengths, file list without mounting, run a disc's installer, fix broken CUE files
 - <picture><img src="docs/90s/ball-green.gif" width="14" alt="o"></picture> Drivers for a **real CD-ROM drive** in DOS: XCDROM (included), VIDE-CDD, LG GSCDROM, MSCDEX
@@ -455,7 +457,8 @@ something breaks please [sign my guestbook](#-sign-my-guestbook-) and tell me!
 - <picture><img src="docs/90s/ball-gold.gif" width="14" alt="o"></picture> **3D screens** for MENU, SETTINGS, CD images, GAMETEST and MIDPLAY in three looks (Panels, Carousel, Module), with the mouse; <kbd>F8</kbd> flips them all between 3D and text
 - <picture><img src="docs/90s/ball-red.gif" width="14" alt="o"></picture> **GAMETEST**: runs games by itself (Doom demos, Duke 3D), measures music timing and finds each game's best settings
 - <picture><img src="docs/90s/ball-blue.gif" width="14" alt="o"></picture> Styles: Groovy, Classic, Sunset, Ocean, Neon, Candy, Midnight; a 3D menu (640×480, no 3D card needed); Terminus or VGA fonts; 80×25 up to 80×60 and your card's VESA text modes
-- <picture><img src="docs/90s/ball-green.gif" width="14" alt="o"></picture> `SBDIAG`, `MPUTEST`, `TIMETEST`, `JOYTEST`, `USBTEST`, `KMTEST`, `CPUMHZ`, `PADCONV`
+- <picture><img src="docs/90s/ball-green.gif" width="14" alt="o"></picture> `SBDIAG`, `MPUTEST`, `TIMETEST`, `JOYTEST`, `USBTEST`, `KMTEST`, `CPUMHZ`, `PADCONV`; `/VER` on any of the pack's programs prints its version
+- <picture><img src="docs/90s/ball-red.gif" width="14" alt="o"></picture> **Fast video** (`WCSET`): write-combining for the VESA frame buffer on Pentium Pro and newer, on while MENU and MIDPLAY run (MENU Settings > Fast video; Tests > Video speed)
 - <picture><img src="docs/90s/ball-gold.gif" width="14" alt="o"></picture> `SETUP`, `CDINST`, `CLEANUP`, `UNINSTAL`: install and remove without touching `CONFIG.SYS` or `AUTOEXEC.BAT`
 </details>
 
@@ -546,14 +549,15 @@ Every release gets tried on real iron here, plus a whole fleet of emulated PCs:
 - <picture><img src="docs/90s/ball-green.gif" width="14" alt="o"></picture> 2 GB RAM
 - <picture><img src="docs/90s/ball-gold.gif" width="14" alt="o"></picture> 3X DVD-ROM
 - <picture><img src="docs/90s/ball-red.gif" width="14" alt="o"></picture> Belkin USB 2.0 card (NEC uPD720101) + official wired Xbox 360 pad
+- <picture><img src="docs/90s/ball-blue.gif" width="14" alt="o"></picture> M-Audio Uno USB MIDI cable into a real Roland SC-55
 
 </td>
 </tr>
 </table>
 
 **Emulated:** 86Box (Celeron 366 for "how slow can it go?", Pentium II with Windows 98 SE) and QEMU, with custom
-add-ons: a fake USB Xbox 360 pad, a joystick driven from a file and scripted keys and screenshots. A one-command test harness
-boots FreeDOS and MS-DOS 7.1 machines from ready-made images in seconds and reads back PASS/FAIL, and a game
+add-ons: a fake USB Xbox 360 pad, a fake M-Audio Uno that answers like the real one (with a byte-for-byte MIDI capture), a joystick driven from a file and scripted keys and screenshots. A one-command test harness
+boots FreeDOS and MS-DOS 7.1 machines from ready-made images in seconds and reads back PASS/FAIL, a disk controller sharing the sound card's interrupt, and a game
 mount + install matrix runs every CD image type and USB port type (UHCI, OHCI, EHCI, xHCI) in both SBEMU modes.
 **And on the bench:** every ROM set at every output rate through a dropped-note test and a sound recorder (beats on time,
 no gaps, no clipping, the right ROM set really loaded), memory checkers (AddressSanitizer / UBSan) over MIDPLAY's player,
@@ -586,7 +590,7 @@ Duke-style games by itself.
 
 - <picture><img src="docs/90s/ball-blue.gif" width="14" alt="o"></picture> **Protected-mode games** (DOS/4GW and friends): `C:\SC55\SC55.BAT`, then the game
 - <picture><img src="docs/90s/ball-green.gif" width="14" alt="o"></picture> **Real-mode games**: `SC55JEM.BAT` (JEMM + QPIEMU) or `SC55QMM.BAT` (QEMM, bring your own)
-- <picture><img src="docs/90s/ball-gold.gif" width="14" alt="o"></picture> **CD music**: put the image in `C:\CDIMAGES`, mount it in the CD images screen, start with `HYBRID.BAT`
+- <picture><img src="docs/90s/ball-gold.gif" width="14" alt="o"></picture> **CD music**: put the image in `C:\CDIMAGES`, mount it in the CD images screen, start the game with `SC55.BAT` as usual
 - <picture><img src="docs/90s/ball-red.gif" width="14" alt="o"></picture> **Settings** live in `C:\SC55\SBOPTS.TXT`, shared by every launcher and Windows 98
 
 The `README.TXT` in the pack is the full manual.
@@ -908,14 +912,16 @@ Want to use our drivers in your own project? See [Take Our Drivers!!](#-take-our
 | `CD images` (`CDGUI`) | mount, eject, fix, install and look inside disc images, text + 3D |
 | `MIDPLAY` | MIDI and game-music player (.MID .KAR .RMI .MUS .HMP .XMI): playlist, search, file browser, key change, A-B loop, sleep timer, a live SC-55 front panel and a 3D view |
 | `GAMETEST` | runs games by itself and finds each game's best settings, text + 3D |
-| `SBDIAG` | what SBEMU found and how hard it's working |
+| `SBDIAG` | what SBEMU found and how hard it's working; `SBDIAG USB` / `SBDIAG MIDICAP` for USB MIDI |
+| `WCSET` | write-combining (MTRR) for the VESA frame buffer: faster 3D screens, undone at exit |
 | `TIMETEST` | do games lose timer ticks while the music plays? |
 | `MPUTEST`, `JOYTEST`, `KMTEST`, `USBTEST` | MIDI port, joystick, keyboard / mouse and USB step-by-step checks |
 | `SC55WAV`, `SC55LOG` | render the SC-55 to WAV and measure its speed on your PC |
 | `PADCONV` | turns the free Keyb2Joypad download (DOSBox Pure) into the pad layouts |
 | CD-audio part of `UCDD`, `SHSUCDX /P` | the virtual drive plays CD music like a real one, and goes first in the list of CD drives: **additions to** vorvek's uCDD and Jason Hood's SHSUCDX |
 | `SETUP`, `CDINST`, `CLEANUP`, `UNINSTAL`, `BUGREP` | install, remove and one-key bug reports, without touching CONFIG.SYS or AUTOEXEC.BAT |
-| `SC55`, `SC55JEM`, `SC55QMM`, `HYBRID`... | launchers for protected-mode, real-mode and CD-music games |
+| `SC55`, `SC55JEM`, `SC55QMM`, `HYBRID`... | launchers for protected-mode and real-mode games (CD music plays with all of them) |
+| `P5TEST` | step-by-step freeze test that saves the logs between runs |
 </details>
 
 <details>
