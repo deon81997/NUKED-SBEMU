@@ -119,6 +119,12 @@ typedef struct
     uint16_t vid, pid;
     char name[40], where[48], last[80];    /* product name, "UHCI 1 port 2", last problem ("12s: ...", "" = none) */
     uint32_t sent, dropped, errors, in, queued, busy, busytmo, paced;
+    int target;                            /* beta.123: the slot new MIDI goes to (0..) */
 } USBPAD_MidiInfoT;
-void USBPAD_MidiInfo(USBPAD_MidiInfoT* m);   /* raw device + config descriptors of the last USB MIDI / M-Audio device seen; bytes (0 = none) */
+void USBPAD_MidiInfo(USBPAD_MidiInfoT* m);   /* the target slot's device + all counters */
+/* beta.123: several USB MIDI devices ("slots", kept across unplug / plug-in) */
+int  USBPAD_MidiSlots(void);               /* how many slots */
+int  USBPAD_MidiSlot(int slot, USBPAD_MidiInfoT* m);   /* that slot's device (state..last); 0 = never seen */
+void USBPAD_MidiTarget(int slot);          /* new MIDI goes there (what is queued still goes where it was meant to) */
+int  USBPAD_MidiGetTarget(void);   /* raw device + config descriptors of the last USB MIDI / M-Audio device seen; bytes (0 = none) */
 #endif

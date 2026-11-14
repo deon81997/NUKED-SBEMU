@@ -529,7 +529,12 @@ static int mpu_debug = 0;
 static int mpu_dbg_ctr = 0;
 #endif
 
-static BOOL MAIN_MUSB;   /* /MUSB: MPU-401 data bytes also go to the USB MIDI device */
+static BOOL MAIN_MUSB;   /* SBEMU's USB is on, so USB MIDI devices can take the MPU-401 (beta.123: not only with /MUSB) */
+static volatile int MAIN_UsbOut;        /* beta.123: 1 = the USB MIDI cable has the music, 0 = the emulated synth (or HW/COM) */
+static void TK_Byte(uint8_t b);         /* MIDI state tracker (below) */
+static int MAIN_ParseOut(const char* v);
+static void MAIN_CapPut(int kind, const uint8_t* d, int n);
+static uint8_t* MAIN_Cap;
 
 /* ---- /MUSB MPU-401 front end (beta.121). Before, every data-port byte went to USB and only FFh/3Fh got an ACK:
  * intelligent-mode commands got no ACK and their parameter bytes (tempo etc.) landed in the MIDI stream as notes,
@@ -560,23 +565,24 @@ static void MU_Cmd(uint8_t c)
     else if (c >= 0xE0 && c <= 0xEF) MU_Want = 3;
     else MU_Want = 0;
 }
+static void MU_Out(uint8_t b) { TK_Byte(b); USBPAD_MidiByte(b); }
 static void MU_Data(uint8_t b)
 {
-    if (MU_Uart || !MU_Intel) { USBPAD_MidiByte(b); return; }
+    if (MU_Uart || !MU_Intel) { MU_Out(b); return; }
     switch (MU_Want)
     {
     case 1:                                          /* one MIDI message */
-        if (b >= 0xF8) { USBPAD_MidiByte(b); return; }
+        if (b >= 0xF8) { MU_Out(b); return; }
         if (MU_Need < 0)
         {
-            if (b >= 0x80) { MU_Want = 0; if (b >= 0xF0) { MU_Ign++; return; } MU_Rs = b; MU_Need = MU_Len(b); USBPAD_MidiByte(b); if (MU_Need) MU_Want = 1; return; }
+            if (b >= 0x80) { MU_Want = 0; if (b >= 0xF0) { MU_Ign++; return; } MU_Rs = b; MU_Need = MU_Len(b); MU_Out(b); if (MU_Need) MU_Want = 1; return; }
             if (!MU_Rs) { MU_Want = 0; MU_Ign++; return; }
-            MU_Need = MU_Len(MU_Rs); USBPAD_MidiByte(MU_Rs);   /* running status: the USB packet needs the status anyway */
+            MU_Need = MU_Len(MU_Rs); MU_Out(MU_Rs);   /* running status: the USB packet needs the status anyway */
         }
-        USBPAD_MidiByte(b);
+        MU_Out(b);
         if (--MU_Need <= 0) MU_Want = 0;
         return;
-    case 2: USBPAD_MidiByte(b); if (b == 0xF7) MU_Want = 0; return;   /* SysEx up to F7 */
+    case 2: MU_Out(b); if (b == 0xF7) MU_Want = 0; return;   /* SysEx up to F7 */
     case 3: MU_Want = 0; return;                     /* the command's parameter byte */
     default: if (!MU_Ign++) TRACE_Event(TR_USB, "midi: MPU intelligent-mode sequencer data ignored"); return;
     }
@@ -589,10 +595,10 @@ static void MU_Data(uint8_t b)
 #define CAP_HDR 20
 #define CAP_GP 48
 #define CAP_UP 32
-static uint8_t* MAIN_Cap;
 static int MAIN_CapG, MAIN_CapU;                    /* bytes used in all G / U pages so far */
 static void MAIN_CapPut(int kind, const uint8_t* d, int n)
 {
+    if (!MAIN_Cap) return;
     int* used = kind ? &MAIN_CapU : &MAIN_CapG, per = CAP_PG - CAP_HDR, pg = *used / per, off = *used % per;
     int maxpg = kind ? CAP_UP : CAP_GP;
     uint8_t* p;
@@ -642,8 +648,7 @@ static uint32_t MAIN_MPU_330(uint32_t port, uint32_t val, uint32_t out)
     if (mpu401_aui.mpu401 && mpu401_aui.card_handler->card_mpu401_write)
       mpu401_aui.card_handler->card_mpu401_write(&mpu401_aui, 0, (uint8_t)(val & 0xff));
     ser_putbyte((int)(val & 0xff));
-    if (MAIN_Cap) { uint8_t r[2] = { 0, (uint8_t)val }; MAIN_CapPut(0, r, 2); }
-    if (MAIN_MUSB) { DIAG_Midi(0); MU_Data((uint8_t)val); }   /* /MUSB: queued only, sent from the next USB poll */
+    if (MAIN_UsbOut) { DIAG_Midi(0); MU_Data((uint8_t)val); }   /* USB: queued only, sent from the next USB poll */
     return 0;
   } else {
     uint8_t val, hwval, hwval_valid = 0;
@@ -663,7 +668,7 @@ static uint32_t MAIN_MPU_330(uint32_t port, uint32_t val, uint32_t out)
     }
     if (hwval_valid)
       return hwval;
-    if (MAIN_MUSB)
+    if (MAIN_UsbOut)
     {
       uint8_t b;
       if (DIAG_ReadByte(&b)) return b;              /* SBDIAG / GAMETEST reports (beta.121: they work with /MUSB too) */
@@ -689,8 +694,7 @@ static uint32_t MAIN_MPU_331(uint32_t port, uint32_t val, uint32_t out)
   if (out) {
     if (mpu401_aui.mpu401 && mpu401_aui.card_handler->card_mpu401_write)
       mpu401_aui.card_handler->card_mpu401_write(&mpu401_aui, 1, (uint8_t)(val & 0xff));
-    if (MAIN_Cap) { uint8_t r[2] = { 1, (uint8_t)val }; MAIN_CapPut(0, r, 2); }
-    if (MAIN_MUSB)
+    if (MAIN_UsbOut)
     {   /* SBEMU's measuring side channel first (as the SC-55's MPU-401 does), then the MPU-401 itself */
       DIAG_ResetFlush((uint8_t)val);
       /* ACh / ADh are also GAMETEST's (key script clear / Esc watch): an intelligent-mode game asking for the
@@ -716,13 +720,180 @@ static uint32_t MAIN_MPU_331(uint32_t port, uint32_t val, uint32_t out)
     if (!mpu401_aui.mpu401_softread)
       return hwval;
   }
-  if (MAIN_MUSB)
+  if (MAIN_UsbOut)
     return (MU_Qn ? 0 : 0x80) | (USBPAD_MidiBusy() ? 0x40 : 0);
   if ((mpu_state & 3) == 0) {
     return 0x80;
   } else {
     return 0;
   }
+}
+
+/* ---- live MIDI output switch (beta.123) -------------------------------------------------------------------------
+ * The emulated synth (VMPU: SC-55 / SoundFont / MT-32) and every USB MIDI device are ready from the start; the MPU-401
+ * trap (MAIN_MPU_Route) gives the game's bytes to the one chosen. A switch (AMIS 07h from MENU or from SBEMU run again
+ * with /MOUT or /MUSB; Ctrl+Alt+F11 in a game) silences the old output and brings the new one to where the music is:
+ * the last GM/GS reset and the SysEx since, then per channel controllers, bank, program, pitch bend range and pitch
+ * bend, then the game's running status and any half-written message, so the next byte the game writes lands right. */
+static uint32_t (*MAIN_SynthMPU)(uint32_t port, uint32_t val, uint32_t out);   /* VMPU_MPU; NULL = no emulated synth */
+static volatile int MAIN_OutPending = -1;    /* Ctrl+Alt+F11: the switch waits for the game's next MPU-401 access */
+static uint32_t MAIN_MpuBase = 0x330;        /* the MPU-401's data port (set where the trap is installed) */
+static char MAIN_SynthName[24] = "SC-55";    /* set at start: SC-55 / SoundFont / MT-32 */
+static BOOL MAIN_SynthOK;                    /* the emulated synth loaded (ROMs / SoundFont found): it can be switched to */
+#define TK_SXMAX 2048
+static uint8_t TK_Prog[16], TK_CC[16][128], TK_Pb[16][2], TK_Sens[16][2], TK_Rpn[16][2];
+static uint16_t TK_ProgSet, TK_PbSet, TK_SensSet;
+static uint32_t TK_CCSet[16][4];
+static uint8_t TK_Sx[TK_SXMAX], TK_Cur[512];
+static int TK_SxN, TK_CurN, TK_InSx, TK_Rs, TK_Have, TK_Need;
+static uint8_t TK_D[2];
+static void TK_Clear(void)
+{
+    memset(TK_CCSet, 0, sizeof TK_CCSet); TK_ProgSet = TK_PbSet = TK_SensSet = 0; memset(TK_Rpn, 0x7F, sizeof TK_Rpn);
+}
+static int TK_IsReset(const uint8_t* m, int n)
+{
+    if (n >= 6 && m[1] == 0x7E && m[3] == 0x09 && (m[4] == 0x01 || m[4] == 0x03)) return 1;                 /* GM on */
+    if (n >= 11 && m[1] == 0x41 && m[3] == 0x42 && m[4] == 0x12 && m[5] == 0x40 && m[6] == 0x00 && m[7] == 0x7F) return 1;   /* GS reset */
+    if (n >= 9 && m[1] == 0x43 && m[3] == 0x4C && m[4] == 0 && m[5] == 0 && m[6] == 0x7E) return 1;           /* XG on */
+    if (n >= 8 && m[1] == 0x41 && m[3] == 0x16 && m[4] == 0x12 && m[5] == 0x7F) return 1;                    /* MT-32 reset */
+    return 0;
+}
+static void TK_Msg(uint8_t st, const uint8_t* d)
+{
+    int ch = st & 15;
+    switch (st & 0xF0)
+    {
+    case 0xC0: TK_Prog[ch] = d[0]; TK_ProgSet |= 1 << ch; break;
+    case 0xE0: TK_Pb[ch][0] = d[0]; TK_Pb[ch][1] = d[1]; TK_PbSet |= 1 << ch; break;
+    case 0xB0:
+        if (d[0] == 121) { int c; static const uint8_t r[] = { 1, 11, 64, 65, 66, 67 }; for (c = 0; c < 6; c++) TK_CCSet[ch][r[c] >> 5] &= ~(1u << (r[c] & 31)); TK_PbSet &= ~(1 << ch); }
+        else if (d[0] == 101 || d[0] == 100) TK_Rpn[ch][d[0] == 100] = d[1];
+        else if (d[0] == 6 || d[0] == 38) { if (!TK_Rpn[ch][0] && !TK_Rpn[ch][1]) { TK_Sens[ch][d[0] == 38] = d[1]; TK_SensSet |= 1 << ch; } }
+        else if (d[0] < 120 && !(d[0] >= 96 && d[0] <= 99)) { TK_CC[ch][d[0]] = d[1]; TK_CCSet[ch][d[0] >> 5] |= 1u << (d[0] & 31); }
+        break;
+    }
+}
+static void TK_Byte(uint8_t b)
+{
+    if (b >= 0xF8) return;
+    if (b == 0xF0) { TK_InSx = 1; TK_Cur[0] = b; TK_CurN = 1; TK_Rs = 0; TK_Have = 0; return; }
+    if (TK_InSx)
+    {
+        if (b < 0x80) { if (TK_CurN < (int)sizeof TK_Cur) TK_Cur[TK_CurN] = b; TK_CurN++; return; }
+        TK_InSx = 0;
+        if (b == 0xF7 && TK_CurN < (int)sizeof TK_Cur)
+        {
+            TK_Cur[TK_CurN++] = b;
+            if (TK_IsReset(TK_Cur, TK_CurN)) { TK_Clear(); TK_SxN = 0; }
+            if (TK_SxN + TK_CurN <= TK_SXMAX) { memcpy(TK_Sx + TK_SxN, TK_Cur, (size_t)TK_CurN); TK_SxN += TK_CurN; }
+        }
+        if (b == 0xF7) return;
+    }
+    if (b >= 0x80)
+    {
+        TK_Have = 0;
+        if (b < 0xF0) { TK_Rs = b; TK_Need = (b & 0xE0) == 0xC0 ? 1 : 2; } else TK_Rs = 0;
+        return;
+    }
+    if (!TK_Rs) return;
+    TK_D[TK_Have++] = b;
+    if (TK_Have < TK_Need) return;
+    TK_Have = 0;
+    TK_Msg((uint8_t)TK_Rs, TK_D);
+}
+/* the two outputs as byte sinks */
+static void MO_Synth(uint8_t b) { if (MAIN_SynthMPU) MAIN_SynthMPU(MAIN_MpuBase, b, 1); }
+static void MO_Usb(uint8_t b) { uint8_t r[2] = { 3, b }; MAIN_CapPut(0, r, 2); USBPAD_MidiByte(b); }
+static void MO_Put3(void (*o)(uint8_t), int a, int b, int c) { o((uint8_t)a); o((uint8_t)b); if (c >= 0) o((uint8_t)c); }
+static void MAIN_Silence(void (*o)(uint8_t))
+{
+    int ch;
+    for (ch = 0; ch < 16; ch++) { MO_Put3(o, 0xB0 | ch, 64, 0); MO_Put3(o, 0xB0 | ch, 123, 0); MO_Put3(o, 0xB0 | ch, 120, 0); }
+}
+static void MAIN_Replay(void (*o)(uint8_t))
+{
+    int ch, c, i;
+    for (i = 0; i < TK_SxN; i++) o(TK_Sx[i]);
+    for (ch = 0; ch < 16; ch++)
+    {
+        MO_Put3(o, 0xB0 | ch, 121, 0);
+        for (c = 0; c < 120; c++) if (TK_CCSet[ch][c >> 5] & (1u << (c & 31))) MO_Put3(o, 0xB0 | ch, c, TK_CC[ch][c]);   /* bank 0/32 first */
+        if (TK_ProgSet & (1 << ch)) MO_Put3(o, 0xC0 | ch, TK_Prog[ch], -1);
+        if (TK_SensSet & (1 << ch))
+        { MO_Put3(o, 0xB0 | ch, 101, 0); MO_Put3(o, 0xB0 | ch, 100, 0); MO_Put3(o, 0xB0 | ch, 6, TK_Sens[ch][0]); MO_Put3(o, 0xB0 | ch, 38, TK_Sens[ch][1]);
+          MO_Put3(o, 0xB0 | ch, 101, 127); MO_Put3(o, 0xB0 | ch, 100, 127); }
+        if (TK_Rpn[ch][0] != 0x7F || TK_Rpn[ch][1] != 0x7F) { MO_Put3(o, 0xB0 | ch, 101, TK_Rpn[ch][0]); MO_Put3(o, 0xB0 | ch, 100, TK_Rpn[ch][1]); }
+        if (TK_PbSet & (1 << ch)) MO_Put3(o, 0xE0 | ch, TK_Pb[ch][0], TK_Pb[ch][1]);
+    }
+    /* where the game is now: in a SysEx (the bytes so far) or after a status (it may use running status next) */
+    if (TK_InSx) for (i = 0; i < TK_CurN && i < (int)sizeof TK_Cur; i++) o(TK_Cur[i]);
+    else if (TK_Rs) { o((uint8_t)TK_Rs); for (i = 0; i < TK_Have; i++) o(TK_D[i]); }
+}
+/* /MOUT text: 0 synth, 1.. USB slot, 0x80 USB (the slot in use), 0xFE next, -1 not understood */
+static int MAIN_ParseOut(const char* v)
+{
+    if (!v || !*v) return -1;
+    if (!strnicmp(v, "USB", 3)) return v[3] >= '1' && v[3] <= '9' ? v[3] - '0' : 0x80;
+    if (!stricmp(v, "NEXT")) return 0xFE;
+    if (!stricmp(v, "SYNTH") || !stricmp(v, "EMU") || !stricmp(v, "SC55") || !stricmp(v, "SC-55") || !stricmp(v, "SF")
+        || !stricmp(v, "MT32") || !stricmp(v, "0")) return 0;
+    return -1;
+}
+static int MAIN_OutCode(void) { return MAIN_UsbOut ? 1 + USBPAD_MidiGetTarget() : 0; }
+static void MAIN_OutMark(void) { uint8_t r[2] = { 2, (uint8_t)MAIN_OutCode() }; MAIN_CapPut(0, r, 2); }
+/* to: 0 = emulated synth, 1.. = USB MIDI slot to-1. Returns 0 done/already, 1 no emulated synth, 2 no USB MIDI */
+static int MAIN_SwitchOut(int to)
+{
+    int from = MAIN_OutCode();
+    if (to == 0 && (!MAIN_SynthMPU || !MAIN_SynthOK)) return 1;
+    if (to > 0 && (!MAIN_MUSB || to > USBPAD_MidiSlots())) return 2;
+    if (to == from) return 0;
+    MAIN_Silence(from ? MO_Usb : MO_Synth);
+    if (to) { USBPAD_MidiTarget(to - 1); MAIN_UsbOut = 1; } else MAIN_UsbOut = 0;
+    MAIN_OutMark();
+    MAIN_Replay(to ? MO_Usb : MO_Synth);
+    TRACE_Event(TR_USB, "MIDI output now %s %d", to ? "USB MIDI" : "emulated synth", to);
+    return 0;
+}
+/* the next output for Ctrl+Alt+F11: synth -> USB 1 -> USB 2 -> synth, skipping what is not there */
+static int MAIN_OutNext(int cur)
+{
+    int k, n = USBPAD_MidiSlots() + 1;
+    for (k = 1; k <= n; k++)
+    {
+        int c = (cur + k) % n;
+        USBPAD_MidiInfoT m;
+        if (c == 0 && MAIN_SynthMPU && MAIN_SynthOK) return 0;
+        if (c > 0 && MAIN_MUSB && USBPAD_MidiSlot(c - 1, &m) && m.state == 1) return c;
+    }
+    return cur;
+}
+/* the MPU-401 trap: capture, a pending hotkey switch, then the chosen output */
+static uint32_t MAIN_MPU_330(uint32_t port, uint32_t val, uint32_t out);
+static uint32_t MAIN_MPU_331(uint32_t port, uint32_t val, uint32_t out);
+static uint32_t MAIN_MPU_Route(uint32_t port, uint32_t val, uint32_t out)
+{
+    int cmd = port != MAIN_MpuBase;
+    if (MAIN_OutPending >= 0) { int t = MAIN_OutPending; MAIN_OutPending = -1; MAIN_SwitchOut(t); }
+    if (out && MAIN_Cap) { uint8_t r[2] = { (uint8_t)cmd, (uint8_t)val }; MAIN_CapPut(0, r, 2); }
+    if (MAIN_UsbOut || !MAIN_SynthMPU) return cmd ? MAIN_MPU_331(port, val, out) : MAIN_MPU_330(port, val, out);
+    if (out && cmd)
+    {   /* the USB side keeps the game's MPU-401 mode, for a switch later */
+        if ((val & 0xFF) == 0xFF) { MU_Uart = 0; MU_Intel = 0; MU_Want = 0; }
+        else if ((val & 0xFF) == 0x3F) MU_Uart = 1;
+    }
+    if (out && !cmd) TK_Byte((uint8_t)val);
+    return MAIN_SynthMPU(port, val, out);
+}
+/* Ctrl+Alt+F11 (from the sound interrupt): pick the next output, show it, switch at the game's next MPU-401 byte */
+static void MAIN_OutHotkey(void)
+{
+    char t[48]; int to = MAIN_OutNext(MAIN_OutPending >= 0 ? MAIN_OutPending : MAIN_OutCode());
+    if (to == 0) snprintf(t, sizeof t, "MIDI: emulated synth");
+    else { USBPAD_MidiInfoT m; USBPAD_MidiSlot(to - 1, &m); snprintf(t, sizeof t, "MIDI: USB %d %.26s", to, m.name); }
+    MAIN_OutPending = to;
+    DIAG_Toast(t, to + 1);
 }
 
 static QEMM_IODT MAIN_MPUIODT[2] =
@@ -901,6 +1072,7 @@ struct MAIN_OPT
     "/MCOM", "UART mode MPU-401 COM port (1=COM1, 2=COM2, 3=COM3, 4=COM4, 9:HW MPU only, otherwise base address)", 9, 0,
     "/COML", "List installed COM ports", 0, MAIN_SETCMD_HIDDEN,
     "/MUSB", "UART mode MPU-401 to a USB MIDI device (class compliant, e.g. M-Audio Uno; 1=on, 0=off; needs /JOY:1, replaces the SC-55)", 0, MAIN_SETCMD_BASE10,
+    "/MOUT", "MIDI output now or at start: SYNTH (the emulated SC-55 / SoundFont / MT-32), USB, USB1, USB2 or NEXT; switches a loaded SBEMU at once", (uintptr_t)"", MAIN_SETCMD_STR,
     "/MIDICAP", "Record the game's MPU-401 bytes and the USB MIDI packets for a bug report (SBDIAG MIDICAP file; 1=on)", 0, MAIN_SETCMD_BASE10,
 #if MPU_DEBUG
     "/MDBG", "Enable MPU-401 debugging (0 to disable, 1 or 2 to enable)", 0, 0,
@@ -982,6 +1154,7 @@ enum EOption
     OPT_MPUCOMPORT,
     OPT_COMPORTLIST,
     OPT_MUSB,
+    OPT_MOUT,
     OPT_MIDICAP,
 #if MPU_DEBUG
     OPT_MDBG,
@@ -1883,11 +2056,8 @@ int main(int argc, char* argv[])
 #endif
 
 #if SBEMU_VMPU
-    if(MAIN_Options[OPT_MUSB].value && VMPU_ENABLED) //USB MIDI device instead of the SC-55 (the launchers pass /VMPU)
-    {
-        MAIN_Options[OPT_VMPU_VOICES].value = 0;
-        MAIN_Options[OPT_VMPU_VOICES].setcmd |= MAIN_SETCMD_SET;   //no SC-55 auto-load either
-    }
+    /* beta.123: /MUSB no longer turns the emulated synth off: it stays loaded so MENU / SBEMU /MOUT / Ctrl+Alt+F11
+     * can switch between it and the USB MIDI devices without a restart (it renders nothing while USB has the music) */
 #endif
     //HW MPU is the default, if VMPU being set, override HW MPU. othewise error.
     //should be checked before MAIN_TSR_InstallationCheck
@@ -1925,7 +2095,7 @@ int main(int argc, char* argv[])
     //options (/SCMPU, /MPUCOM) or an explicit /VMPU leave the choice to the user.
     if(!(MAIN_Options[OPT_VMPU_VOICES].setcmd&MAIN_SETCMD_SET) && !VMPU_ENABLED
         && !MAIN_Options[OPT_SCMPU].value && (MAIN_Options[OPT_MPUCOMPORT].value == 9 || MAIN_Options[OPT_MPUCOMPORT].value == 0)
-        && !MAIN_Options[OPT_MUSB].value && MAIN_Options[OPT_MPUADDR].value)
+        && MAIN_Options[OPT_MPUADDR].value)
     {
         char rompath[_MAX_PATH];
         const char* rd = (const char*)MAIN_Options[OPT_VMPU_SF].value;
@@ -2110,7 +2280,13 @@ int main(int argc, char* argv[])
         MAIN_Print_Enabled_Newline(true);
     }
 
-    MAIN_MUSB = MAIN_Options[OPT_MUSB].value && MAIN_Options[OPT_JOY].value && MAIN_Options[OPT_USB].value;
+    MAIN_MUSB = MAIN_Options[OPT_JOY].value && MAIN_Options[OPT_USB].value;   /* beta.123: USB MIDI ready whenever SBEMU's USB is on */
+    {   /* the output at start: /MOUT, else /MUSB:1 = USB, else the emulated synth (USB when there is none) */
+        int want = MAIN_Options[OPT_MUSB].value ? 1 : 0;
+        if(MAIN_Options[OPT_MOUT].setcmd & MAIN_SETCMD_SET) { int m = MAIN_ParseOut((const char*)MAIN_Options[OPT_MOUT].value); if(m >= 0 && m < 0xFE) want = m; }
+        MAIN_UsbOut = MAIN_MUSB && (want > 0 || !VMPU_ENABLED);
+        if(MAIN_UsbOut && want > 1) USBPAD_MidiTarget(want - 1);
+    }
     if(MAIN_Options[OPT_MIDICAP].value && !MAIN_Cap)
     {
         MAIN_CapInit();
@@ -2118,7 +2294,7 @@ int main(int argc, char* argv[])
         MAIN_Print_Enabled_Newline(MAIN_Cap != NULL);
     }
     if(MAIN_Options[OPT_MPUADDR].value && 
-        (MAIN_Options[OPT_MPUCOMPORT].value || VMPU_ENABLED || MAIN_MUSB)
+        (MAIN_Options[OPT_MPUCOMPORT].value || VMPU_ENABLED || (MAIN_MUSB && (MAIN_Options[OPT_MUSB].value || (MAIN_Options[OPT_MOUT].setcmd & MAIN_SETCMD_SET))))
     )
     {
 #if SBEMU_VMPU
@@ -2150,6 +2326,7 @@ int main(int argc, char* argv[])
             MAIN_Step("MPU-401 synth init (ROM scan, firmware boot)");
             if( VMPU_Init(MAIN_Options[OPT_MPUADDR].value, &MAIN_Options[OPT_VMPU_VOICES].value, aui.freq_card, get_abs_path(fullpath, sizeof(fullpath), sf) ) )
             {
+                MAIN_SynthOK = TRUE;            /* beta.123: it plays, so it can be switched to */
                 #if SBEMU_VSC55
                 if(MAIN_USE_MT32)
                 {
@@ -2188,12 +2365,19 @@ int main(int argc, char* argv[])
                 #endif
             }
             //always set
-            MAIN_MPUIODT[0].handler = &VMPU_MPU; //330
-            MAIN_MPUIODT[1].handler = &VMPU_MPU; //331
+            MAIN_SynthMPU = &VMPU_MPU;          /* beta.123: reached through MAIN_MPU_Route */
+            #if SBEMU_VSC55
+            snprintf(MAIN_SynthName, sizeof MAIN_SynthName, "%s", MAIN_USE_SF ? "SoundFont" : MAIN_USE_MT32 ? "MT-32" : "SC-55");
+            #else
+            snprintf(MAIN_SynthName, sizeof MAIN_SynthName, "SoundFont");
+            #endif
         }
 #endif
-
-        for(int i = 0; i < countof(MAIN_MPUIODT); ++i) MAIN_MPUIODT[i].port = MAIN_Options[OPT_MPUADDR].value+i; MAIN_MPU_Wrap();
+        if(!MAIN_SynthOK && MAIN_MUSB) MAIN_UsbOut = 1;   /* no emulated synth that plays: USB MIDI has it */
+        MAIN_MPUIODT[0].handler = &MAIN_MPU_Route; MAIN_MPUIODT[1].handler = &MAIN_MPU_Route;
+        for(int i = 0; i < countof(MAIN_MPUIODT); ++i) MAIN_MPUIODT[i].port = MAIN_Options[OPT_MPUADDR].value+i; MAIN_MpuBase = MAIN_Options[OPT_MPUADDR].value; MAIN_MPU_Wrap();
+        MAIN_OutMark();
+        DIAG_SetHotkey(&MAIN_OutHotkey);
         if(enableRM && !(MPURMInstalled=QEMM_Install_IOPortTrap(MAIN_MPUIODT, 2, &MPUIOPT)))
         {
             MAIN_CPrintf(RED, "Error: Failed installing MPU-401 IO port trap for QEMM.\n");
@@ -2486,11 +2670,12 @@ int main(int argc, char* argv[])
                         MAIN_CPrintf(YELLOW, "  BIOS joystick (INT 15h AH=84h) not hooked: no memory.\n");
                 }
                 MAIN_CPrintf(LIGHTGRAY, "  USB: %s.\n", msg);
-                if(MAIN_MUSB)
-                {
-                    printf("MPU-401 MIDI to a USB MIDI device (/MUSB): ");
-                    MAIN_Print_Enabled_Newline(TRUE);
-                    MAIN_CPrintf(LIGHTGRAY, (USBPAD_Have() & USBPAD_HAVE_MIDI) ? "  USB MIDI device found.\n" : "  No USB MIDI device yet: plug it in any time.\n");
+                if(MAIN_MUSB && MPURMInstalled + MPUPMInstalled)
+                {   /* beta.123: one line on where the MIDI goes now, and how to switch */
+                    printf("MIDI output: %s", MAIN_UsbOut ? "USB MIDI device" : MAIN_SynthName);
+                    MAIN_CPrintf(LIGHTGRAY, " (%s; switch: MENU, SBEMU /MOUT:%s, Ctrl+Alt+F11 in a game)\n",
+                        (USBPAD_Have() & USBPAD_HAVE_MIDI) ? "USB MIDI device found" : "no USB MIDI device yet: plug it in any time",
+                        MAIN_UsbOut ? "SYNTH" : "USB");
                 }
                 if(MAIN_Options[OPT_USBMS].value && !enableRM)
                 {
@@ -3109,7 +3294,7 @@ static void MAIN_Interrupt()
         }
 
 #if SBEMU_VMPU
-    if(vmpu_active)
+    if(vmpu_active && !MAIN_UsbOut)   /* beta.123: idle (no CPU) while the USB MIDI cable has the music */
     {
         #if SBEMU_VSC55
         //The SC-55 emulation needs milliseconds per block: interrupts must stay enabled while it runs,
@@ -3190,8 +3375,8 @@ void MAIN_TSR_InstallationCheck()
 
             for(int j = 0; j < OPT_COUNT; ++j)
             {
-                if(!(MAIN_Options[j].setcmd&MAIN_SETCMD_SET) || (MAIN_Options[j].setcmd&MAIN_SETCMD_HIDDEN))
-                    continue;
+                if(!(MAIN_Options[j].setcmd&MAIN_SETCMD_SET) || (MAIN_Options[j].setcmd&MAIN_SETCMD_HIDDEN) || j == OPT_MOUT)
+                    continue;   /* /MOUT: done through AMIS 07h below, not kept */
                 if((MAIN_Options[j].setcmd&MAIN_SETCMD_STR) && 
                     ( (MAIN_Options[j].setcmd&MAIN_SETCMD_STRCS) && DPMI_LStrcmp(opt[j].value, DPMI_PTR2L((char*)MAIN_Options[j].value)) != 0
                         || DPMI_LStricmp(opt[j].value, DPMI_PTR2L((char*)MAIN_Options[j].value)) != 0 ) )
@@ -3265,6 +3450,20 @@ void MAIN_TSR_InstallationCheck()
                 exit(-1);
             }
 
+            {   /* beta.123: /MOUT, or /MUSB:0|1 (SETTINGS writes one of them): switch the loaded SBEMU's MIDI output now */
+                int want = -1;
+                if(MAIN_Options[OPT_MOUT].setcmd & MAIN_SETCMD_SET) want = MAIN_ParseOut((const char*)MAIN_Options[OPT_MOUT].value);
+                else if(MAIN_Options[OPT_MUSB].setcmd & MAIN_SETCMD_SET) want = MAIN_Options[OPT_MUSB].value ? 0x80 : 0;
+                if(want >= 0)
+                {
+                    r.h.ah = i; r.h.al = 0x07; r.d.ecx = (uint32_t)want;
+                    DPMI_CallRealModeINT(MAIN_TSR_INT, &r);
+                    if(r.h.al == 0x07) printf("MIDI output: the loaded SBEMU is older than beta.123 - restart the PC to change it.\n");
+                    else if(r.w.flags & CPU_CFLAG) printf("MIDI output not changed: %s.\n", r.d.ecx == 1 ? "no emulated synth loaded (no ROMs / SoundFont when SBEMU started)" : "no USB MIDI (SBEMU's USB is off: /JOY:0 or /USB:0)");
+                    else if(r.d.ecx == 0) printf("MIDI output: the emulated synth.\n");
+                    else printf("MIDI output: USB MIDI device %d.\n", (int)r.d.ecx);
+                }
+            }
             printf("Current settings:\n");
             for(int i = OPT_Help+1; i < OPT_COUNT; ++i)
             {
@@ -3344,15 +3543,21 @@ static void MAIN_TSR_Interrupt()
         return;
         case 0x05: //USB MIDI status (beta.121), one line into EBX like 04h: "MUSB=.. STATE=.. ...|NAME=..|PORT=..|LAST=.."
         {
-            char t[400]; USBPAD_MidiInfoT m;
+            char t[600]; USBPAD_MidiInfoT m;
             static const char* st[] = { "waiting", "active", "unplugged", "dropped" };
             int n;
             USBPAD_MidiInfo(&m);
-            n = snprintf(t, sizeof t, "MUSB=%d STATE=%s ID=%04X:%04X SENT=%lu DROP=%lu ERR=%lu IN=%lu Q=%lu BUSY=%lu BTMO=%lu MPU=%s IGN=%lu CAP=%d|NAME=%s|PORT=%s|LAST=%s",
-                MAIN_MUSB ? 1 : MAIN_Options[OPT_MUSB].value ? 2 : 0, MAIN_MUSB ? st[m.state & 3] : "off", m.vid, m.pid,
+            n = snprintf(t, sizeof t, "MUSB=%d STATE=%s ID=%04X:%04X SENT=%lu DROP=%lu ERR=%lu IN=%lu Q=%lu BUSY=%lu BTMO=%lu MPU=%s IGN=%lu CAP=%d OUT=%d SYN=%d|NAME=%s|PORT=%s|LAST=%s",
+                MAIN_MUSB && MAIN_UsbOut ? 1 : MAIN_MUSB ? 3 : MAIN_Options[OPT_MUSB].value ? 2 : 0, MAIN_MUSB ? st[m.state & 3] : "off", m.vid, m.pid,
                 (unsigned long)m.sent, (unsigned long)m.dropped, (unsigned long)m.errors, (unsigned long)m.in, (unsigned long)m.queued,
                 (unsigned long)m.busy, (unsigned long)m.busytmo, MU_Uart ? "uart" : MU_Intel ? "intelligent" : "reset", (unsigned long)MU_Ign,
-                MAIN_Cap ? 1 : 0, m.name, m.where, m.last);
+                MAIN_Cap ? 1 : 0, MAIN_OutCode(), MAIN_SynthOK ? 1 : 0, m.name, m.where, m.last);
+            {   /* beta.123: every USB MIDI slot: |U1=state;vid:pid;name;port and the emulated synth's name */
+                int k; USBPAD_MidiInfoT u;
+                for(k = 0; k < USBPAD_MidiSlots() && n < (int)sizeof t - 100; k++)
+                    if(USBPAD_MidiSlot(k, &u)) n += snprintf(t + n, sizeof t - n, "|U%d=%s;%04X:%04X;%.30s;%.30s", k + 1, st[u.state & 3], u.vid, u.pid, u.name, u.where);
+                if(n < (int)sizeof t - 40) n += snprintf(t + n, sizeof t - n, "|SYNTH=%s", MAIN_SynthOK ? MAIN_SynthName : "none");
+            }
             if(n > (int)sizeof t - 1) n = sizeof t - 1;
             if(MAIN_TSRREG.d.ecx < (uint32_t)n + 1) n = MAIN_TSRREG.d.ecx ? (int)MAIN_TSRREG.d.ecx - 1 : 0;
             t[n] = 0;
@@ -3360,6 +3565,18 @@ static void MAIN_TSR_Interrupt()
             MAIN_TSRREG.d.ecx = n;
             MAIN_TSRREG.h.al = 0;
             MAIN_TSRREG.w.flags &= ~CPU_CFLAG;
+        }
+        return;
+        case 0x07: //beta.123: MIDI output switch: ECX 0 = emulated synth, 1.. = USB slot, 0x80 = USB (slot in use), 0xFE = next
+        {   //AL = 0 done, CF + ECX 1 = no emulated synth, 2 = no USB MIDI; ECX out = the output now (0 / 1..)
+            uint32_t to = MAIN_TSRREG.d.ecx; int r;
+            if(to == 0x80) to = 1 + USBPAD_MidiGetTarget();
+            else if(to == 0xFE) to = MAIN_OutNext(MAIN_OutCode());
+            MAIN_OutPending = -1;
+            r = MAIN_SwitchOut((int)to);
+            MAIN_TSRREG.h.al = 0;
+            if(r) { MAIN_TSRREG.w.flags |= CPU_CFLAG; MAIN_TSRREG.d.ecx = r; }
+            else { MAIN_TSRREG.w.flags &= ~CPU_CFLAG; MAIN_TSRREG.d.ecx = MAIN_OutCode(); }
         }
         return;
         case 0x06: //MIDI capture page ECX (0..) -> 4096 bytes at EBX; ECX out = number of pages (beta.121, /MIDICAP:1)
@@ -3632,16 +3849,16 @@ static void MAIN_TSR_Interrupt()
                         #endif
                         MAIN_Options[OPT_VMPU_SFBUF].value = 0;
                         //always set
-                        MAIN_MPUIODT[0].handler = &VMPU_MPU; //330
-                        MAIN_MPUIODT[1].handler = &VMPU_MPU; //331
+                        MAIN_SynthMPU = &VMPU_MPU;
+                        MAIN_MPUIODT[0].handler = &MAIN_MPU_Route; MAIN_MPUIODT[1].handler = &MAIN_MPU_Route;
                     }
                     else
                     {
-                        MAIN_MPUIODT[0].handler = &MAIN_MPU_330; //330
-                        MAIN_MPUIODT[1].handler = &MAIN_MPU_331; //331
+                        MAIN_SynthMPU = NULL;
+                        MAIN_MPUIODT[0].handler = &MAIN_MPU_Route; MAIN_MPUIODT[1].handler = &MAIN_MPU_Route;
                     }
 #endif
-                    for(int i = 0; i < countof(MAIN_MPUIODT); ++i) MAIN_MPUIODT[i].port = MAIN_Options[OPT_MPUADDR].value+i; MAIN_MPU_Wrap();
+                    for(int i = 0; i < countof(MAIN_MPUIODT); ++i) MAIN_MPUIODT[i].port = MAIN_Options[OPT_MPUADDR].value+i; MAIN_MpuBase = MAIN_Options[OPT_MPUADDR].value; MAIN_MPU_Wrap();
                     if(MAIN_Options[OPT_RM].value) QEMM_Install_IOPortTrap(MAIN_MPUIODT, 2, &MPUIOPT);
                     if(MAIN_Options[OPT_PM].value) HDPMIPT_Install_IOPortTrap(MAIN_Options[OPT_MPUADDR].value, MAIN_Options[OPT_MPUADDR].value+1, MAIN_MPUIODT, 2, &MPUIOPT_PM);
                 }

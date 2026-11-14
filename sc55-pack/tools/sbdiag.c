@@ -238,17 +238,23 @@ int main(int argc, char** argv)
         return 0;
     }
     if (!stricmp(cmd, "MIDICAP")) return midicap(argc > 2 ? argv[2] : NULL);
-    g_muon = sbemu_musb(&g_mu) && g_mu.on;
+    g_muon = sbemu_musb(&g_mu) && g_mu.out > 0;
     if (!stricmp(cmd, "USB"))
     {
         char l[200];
         if (!sbemu_musb(&g_mu)) { printf("USB MIDI: SBEMU (beta.121+) is not loaded.\n"); return 1; }
+        {
+            char o[120]; int k;
+            printf("%s%s\n", musb_outline(&g_mu, o, sizeof o), g_mu.syn ? "" : " (no emulated synth loaded)");
+            for (k = 0; k < g_mu.nu; k++) printf("  USB %d: %s (%s) on %s, %s\n", g_mu.u[k].slot, g_mu.u[k].name, g_mu.u[k].id, g_mu.u[k].port, g_mu.u[k].state);
+            printf("  switch: MENU (Sound > MIDI to), SBEMU /MOUT:SYNTH|USB|USB1|USB2|NEXT, Ctrl+Alt+F11 in a game\n");
+        }
         printf("%s\n", musb_line(&g_mu, l, sizeof l));
         printf("  device %s, MPU-401 mode %s, %lu packets sent, %lu dropped, %lu USB errors, %lu queued, %lu MIDI IN\n"
                "  the game waited for the cable %lu times (%lu waits cut short: no progress for 1 s), %lu intelligent-mode bytes ignored%s\n",
                g_mu.id, g_mu.mpu, g_mu.sent, g_mu.drop, g_mu.err, g_mu.q, g_mu.in, g_mu.busy, g_mu.btmo, g_mu.ign,
                g_mu.cap ? ", recording (/MIDICAP)" : "");
-        return !strcmp(g_mu.state, "active") ? 0 : 1;
+        return g_mu.out == 0 || !strcmp(g_mu.state, "active") ? 0 : 1;
     }
     g_ui = isatty(fileno(stdout));
     if (!stricmp(cmd, "DEMO"))

@@ -284,7 +284,7 @@ static void m3_draw_panels(int cat, int sel, float selanim)
         m3_box2d(12, 10, W - 24, 46, m3_mul(m3_lerpc(m3_sky1, m3_accent[0], 90), 330), m3_mul(m3_sky1, 160), 0, 6);
         m3_text_glow(&m3_scr, 28, 18, 3, "NUKED SB-EMU", 0xFFFFFF, m3_glowc);
         m3_text(&m3_scr, 250, 26, 0, g_running ? "SBEMU is loaded" : g_sbc.state == SBC_UNKNOWN ? "SBEMU state unknown" : "SBEMU is not loaded", g_running ? 0x80FF90 : 0xFFC060, 256);
-        if (g_running && g_musb_ok && g_musb.on == 1)   /* beta.121: USB MIDI device state */
+        if (g_running && g_musb_ok && g_musb.out > 0)   /* beta.121: USB MIDI device state */
         {
             char u[64]; int act = !strcmp(g_musb.state, "active");
             snprintf(u, sizeof u, "USB MIDI: %.20s %s", act ? g_musb.name : "", act ? (g_musb.last[0] ? "(error)" : "active") : g_musb.state);

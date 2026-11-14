@@ -72,8 +72,18 @@ def main():
         open(W + '/pad.txt', 'w').write('2 buttons=1000 lx=12000\n')
         pp = subprocess.Popen([sys.executable, os.path.join(TR, 'fakepad.py'), str(port + 50), W + '/pad.txt']); time.sleep(0.5)
         args += ['-chardev', 'socket,id=pad,host=127.0.0.1,port=%d' % (port + 50), '-device', 'usb-redir,chardev=pad,id=pad,bus=u.0']
+    fm2 = None
+    if os.environ.get('FAKEMIDI2'):         # beta.123: a second USB MIDI device (FAKEMIDI_PID 0151, its own name and log)
+        e2 = dict(env); e2['FAKEMIDI_PID'] = '0151'; e2['FAKEMIDI_NAME'] = 'Second MIDI Cable'
+        fm2 = subprocess.Popen([sys.executable, os.path.join(TR, 'fakemidi.py'), str(port + 60), flog.replace('.log', '-2.log')], env=e2); time.sleep(0.5)
+        args += ['-chardev', 'socket,id=midi2b,host=127.0.0.1,port=%d,reconnect=1' % (port + 60), '-device', 'usb-redir,chardev=midi2b,id=midi2b,bus=u.0']
+    keys = [x.split(':', 1) for x in sys.argv[sys.argv.index('--keys') + 1].split(',')] if '--keys' in sys.argv else []
+    if keys: args += ['-global', 'i8042.kbd-throttle=on']     # beta.123: --keys T:qemu-key,... (e.g. 40:ctrl-alt-f11)
     q = subprocess.Popen(args, stdout=open(W + '/qemu.log', 'w'), stderr=subprocess.STDOUT)
     t0 = time.time()
+    for kt, kk in sorted(keys, key=lambda x: float(x[0])):
+        while time.time() - t0 < float(kt) and q.poll() is None: time.sleep(0.2)
+        mon(sock, kk[1:] if kk.startswith('!') else 'sendkey ' + kk)   # '!cmd' = a monitor command (screendump x.ppm)
     if hot:
         time.sleep(hot); mon(sock, 'device_del midi'); time.sleep(3)
         mon(sock, 'chardev-remove midi')
@@ -87,6 +97,7 @@ def main():
             time.sleep(0.5)
         time.sleep(1)
     q.kill(); q.wait(); fm.kill()
+    if fm2: fm2.kill()
     if '--pad' in sys.argv: pp.kill()
     outn = os.path.join(HERE, 'out-%s%s%s.txt' % (hc, '-hs' if high else '', TAG))
     if dos71:

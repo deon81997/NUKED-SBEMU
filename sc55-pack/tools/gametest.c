@@ -66,7 +66,7 @@ static int sbemu_present(void)
 {
     int p = mpu_find(MPU);
     if (p) MPU = p;
-    g_muon = sbemu_musb(&g_mu) && g_mu.on;
+    g_muon = sbemu_musb(&g_mu) && g_mu.out > 0;
     return p != 0;
 }
 static const char* musb_short(char* b, int n)

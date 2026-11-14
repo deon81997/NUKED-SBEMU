@@ -10,7 +10,7 @@
    where a MIDI parser sees it, a SysEx is one event). PASS = the device's events (fakemidi log, else the U pages) are
    exactly the expected ones, apart from a tail still queued when the dump was taken (at most QUEUE_MAX events).
    Exit 0 PASS, 1 FAIL, 2 no capture."""
-import sys, struct
+import os, sys, struct
 
 QUEUE_MAX = 1100            # SBEMU's queue (1024 packets) + one transfer in flight
 CNT = [0, 0, 2, 3, 3, 1, 2, 3, 3, 3, 3, 3, 2, 2, 3, 1]
@@ -31,10 +31,38 @@ def joined(p):
         out += p[i]
     return out
 
-def model(writes):
-    """reference MPU-401: game writes (port 0 data / 1 command, value) -> bytes on the MIDI cable"""
+def model(writes, slots=None):
+    """reference MPU-401: game writes (port 0 data / 1 command, value) -> bytes on the MIDI cable.
+       beta.123 records: port 2 = output switch (0 emulated synth, 1.. USB slot), port 3 = a byte SBEMU itself sent
+       to the USB cable (silence for the old output / state replay for the new one). slots: dict slot -> byte list"""
     out, uart, intel, want, need, rs, ign = [], False, False, 0, -1, None, 0
+    cur = 1                                     # captures before beta.123: always USB slot 1
+    if slots is None: slots = {}
+    def emit(b): out.append(b); slots.setdefault(cur, []).append(b); allm.append(b)
+    allm, rep, snap = [], None, None           # all the game's MIDI (either output); replay after a switch to USB
+    def progs(bs):
+        p = {}
+        for e in events(bs):
+            if e[0] == 'M' and 0xC0 <= e[1] < 0xD0: p[e[1] & 15] = e[2]
+        return p
+    def check():
+        if rep is None: return
+        got = progs(rep)
+        bad = [ch for ch in snap if got.get(ch) != snap[ch]]
+        REPLAY.append((len(snap), bad))
     for port, v in writes:
+        if port == 2:
+            check(); cur = v; rep = [] if v else None; snap = progs(allm) if v else None; continue
+        if port == 3:
+            if cur: slots.setdefault(cur, []).append(v)
+            if rep is not None: rep.append(v)
+            continue
+        if rep is not None: check(); rep = None
+        if cur == 0 and port == 0: allm.append(v)
+        if cur == 0:                            # the emulated synth has it: the USB side only follows FF / 3F
+            if port == 1 and v == 0xFF: uart = intel = False; want = 0
+            elif port == 1 and v == 0x3F and not uart: uart = True; want = 0
+            continue
         if port:
             if v == 0xFF: uart = intel = False; want = 0; continue
             if uart: continue
@@ -46,24 +74,26 @@ def model(writes):
             elif 0xE0 <= v <= 0xEF: want = 3
             else: want = 0
             continue
-        if uart or not intel: out.append(v); continue
+        if uart or not intel: emit(v); continue
         if want == 1:
-            if v >= 0xF8: out.append(v); continue
+            if v >= 0xF8: emit(v); continue
             if need < 0:
                 if v >= 0x80:
                     want = 0
                     if v >= 0xF0: ign += 1; continue
-                    rs = v; need = 1 if (v & 0xE0) == 0xC0 else 2; out.append(v); want = 1; continue
+                    rs = v; need = 1 if (v & 0xE0) == 0xC0 else 2; emit(v); want = 1; continue
                 if rs is None: want = 0; ign += 1; continue
-                need = 1 if (rs & 0xE0) == 0xC0 else 2; out.append(rs)
-            out.append(v); need -= 1
+                need = 1 if (rs & 0xE0) == 0xC0 else 2; emit(rs)
+            emit(v); need -= 1
             if need <= 0: want = 0
         elif want == 2:
-            out.append(v)
+            emit(v)
             if v == 0xF7: want = 0
         elif want == 3: want = 0
         else: ign += 1
+    check()
     return out, ign
+REPLAY = []                                     # per switch to USB: (channels with a program, channels the replay got wrong)
 
 def events(bs):
     ev, rs, buf, need, sx = [], None, [], 0, None
@@ -101,9 +131,11 @@ def fake_bytes(path):
         if i >= 0 and 'MIDI IN' not in l: out += [int(x, 16) for x in l[i + 5:].split()]
     return out
 
-def packet_bytes(u):
+def packet_bytes(u, slot=None):
     out = []
-    for i in range(0, len(u) - 3, 4): out += list(u[i + 1:i + 1 + CNT[u[i] & 15]])
+    for i in range(0, len(u) - 3, 4):
+        if slot is not None and (u[i] >> 4) + 1 != slot: continue     # beta.123: the slot is in the cable nibble
+        out += list(u[i + 1:i + 1 + CNT[u[i] & 15]])
     return out
 
 def fmt(e): return ' '.join('%02X' % x if isinstance(x, int) else x for x in e)
@@ -133,21 +165,35 @@ def main():
         if not g: print('midicap: no SBMIDCAP pages in %s FAIL' % a[0]); return 2
         gb, ub = joined(g), joined(u)
         writes = [(gb[i], gb[i + 1]) for i in range(0, len(gb) - 1, 2)]
-    cable, ign = model(writes)
-    exp = events(cable)
-    sent = events(packet_bytes(ub))
+    slots = {}
+    cable, ign = model(writes, slots)
+    if not slots: slots = {1: []}
+    nsw = sum(1 for p, v in writes if p == 2)
     kinds = {}
-    for e in exp: kinds[e[0]] = kinds.get(e[0], 0) + 1
+    for e in events(cable): kinds[e[0]] = kinds.get(e[0], 0) + 1
     full = len(g) >= 48 or len(u) >= 32
-    print('capture: %d MPU writes (%d data, %d commands), %d expected events %s, %d intelligent-mode bytes not MIDI, %d USB packets%s'
-          % (len(writes), sum(1 for p, v in writes if not p), sum(1 for p, v in writes if p), len(exp),
-             ' '.join('%s=%d' % kv for kv in sorted(kinds.items())), ign, len(ub) // 4, ' (capture full)' if full else ''))
-    ok = compare('SBEMU sent (U pages)', sent, exp, quiet) if ub else True
-    if len(a) > 1:
-        dev = events(fake_bytes(a[1]))
-        if full: dev = dev[:len(exp)]
-        ok = compare('device received (fakemidi log)', dev, exp, quiet) and ok
-        if full and len(dev) > len(sent): print('  (the device got more than the capture holds: compared up to the capture)')
+    print('capture: %d MPU writes (%d data, %d commands), %d expected events %s, %d intelligent-mode bytes not MIDI, %d USB packets, %d output switches%s'
+          % (len(writes), sum(1 for p, v in writes if p == 0), sum(1 for p, v in writes if p == 1), len(events(cable)),
+             ' '.join('%s=%d' % kv for kv in sorted(kinds.items())), ign, len(ub) // 4, nsw, ' (capture full)' if full else ''))
+    ok = True
+    for n, bad in REPLAY:
+        print('  switch to USB: replay restores %d channel programs%s' % (n, ', WRONG on channels %s' % bad if bad else ''))
+        ok = ok and not bad
+    logs = a[1:]
+    for k in sorted(slots):
+        exp = events(slots[k])
+        if ub: ok = compare('USB %d: SBEMU sent (U pages)' % k, events(packet_bytes(ub, k if nsw else None)), exp, quiet) and ok
+        if logs:
+            best, bestn = None, -1
+            for l in logs:                       # the fake log that belongs to this slot: the longest common start
+                dev = events(fake_bytes(l))
+                if full: dev = dev[:len(exp)]
+                n = 0
+                while n < min(len(dev), len(exp)) and dev[n] == exp[n]: n += 1
+                if dev and n > bestn: best, bestn = (l, dev), n
+            if best is None and len(logs) == 1 and len(slots) == 1: best = (logs[0], events(fake_bytes(logs[0])))
+            if best is None: print('  USB %d: no device log matches (%d events expected)' % (k, len(exp))); ok = ok and not exp
+            else: ok = compare('USB %d: device received (%s)' % (k, os.path.basename(best[0])), best[1], exp, quiet) and ok
     print('midicap: %s' % ('PASS' if ok else 'FAIL'))
     return 0 if ok else 1
 

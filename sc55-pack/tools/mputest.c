@@ -199,7 +199,7 @@ int main(int argc, char** argv)
         else { puts("MPUTEST [/P:330] [/L] [/USB]\nPlays a test tune through the MPU-401 (SBEMU + SC-55 must be loaded).\n"
                     "/USB: also checks the USB MIDI device of SBEMU /MUSB (running status, real time, SysEx in pieces)."); return 2; }
     }
-    g_usb = sbemu_musb(&g_mu0) && g_mu0.on; g_mu = g_mu0;
+    g_usb = sbemu_musb(&g_mu0) && g_mu0.out > 0; g_mu = g_mu0;
     if (g_usbx && !g_usb) { char l[200]; printf("MPUTEST /USB: %s\n", g_mu0.on || sbemu_musb(&g_mu0) ? musb_line(&g_mu0, l, sizeof l) : "SBEMU (beta.121+) is not loaded"); }
     { int p = mpu_find(base); if (p) base = p; }   /* SBEMU's MPU-401 on whatever port it uses */
     g_ui = isatty(1);

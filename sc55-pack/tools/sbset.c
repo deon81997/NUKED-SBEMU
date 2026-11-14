@@ -271,6 +271,11 @@ static void build_line(char* out)
             sprintf(t, "%s/VMT32:%s", out[0] ? " " : "", F[F_SYNTH].cur == 2 ? "MT32" : "CM32L");
             strcat(out, t);
         }
+        if (i == F_MPU && F[F_SYNTH].cur != 4)            /* beta.123: said out loud, so SC55 run again switches a loaded */
+        {                                                 /* SBEMU back from USB MIDI to the emulated synth */
+            sprintf(t, "%s/MUSB:0", out[0] ? " " : "");
+            strcat(out, t);
+        }
         if (i == F_SF)
         {
             if (!g_sf[0]) continue;
