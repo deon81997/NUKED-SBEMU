@@ -66,7 +66,7 @@ def main():
            'ehci': ['-device', 'usb-ehci,id=u'], 'xhci': ['-device', 'qemu-xhci,id=u']}[hc]
     sock = W + '/mon.sock'
     args = ['qemu-system-i386', '-machine', 'pc', '-cpu', 'pentium3', '-m', mem, '-drive', 'file=%s/c.img,format=raw,if=ide' % W,
-            '-display', 'none', '-monitor', 'unix:%s,server,nowait' % sock, '-audiodev', 'none,id=snd', '-device', 'AC97,audiodev=snd'] + ctl + \
+            '-display', 'none', '-monitor', 'unix:%s,server,nowait' % sock, '-audiodev', 'none,id=snd,timer-period=2000', '-device', 'AC97,audiodev=snd'] + ctl + \
            ['-chardev', 'socket,id=midi,host=127.0.0.1,port=%d,reconnect=1' % port, '-device', 'usb-redir,chardev=midi,id=midi,bus=u.0']
     if '--pad' in sys.argv:                 # an Xbox 360 pad next to it (testrig/fakepad.py, A held from 2 s)
         open(W + '/pad.txt', 'w').write('2 buttons=1000 lx=12000\n')

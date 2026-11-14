@@ -539,7 +539,7 @@ static BOOL MAIN_MUSB;   /* /MUSB: MPU-401 data bytes also go to the USB MIDI de
  *  - intelligent mode: every command ACKed (FEh), version / revision / tempo requests answered, "want to send data"
  *    D0h-D7h = one MIDI message follows (running status kept), DFh = a SysEx follows, the parameter byte of E0h..EFh
  *    swallowed, sequencer track data ignored (the MPU-401's own sequencer is not emulated; counted in IGN=);
- *  - status bit 6 (busy) while the USB queue is nearly full (USBPAD_MidiBusy, bounded to 0.2 s). */
+ *  - status bit 6 (busy) while the USB queue is nearly full (USBPAD_MidiBusy; 1 s without progress lets the game on). */
 static uint8_t MU_Uart, MU_Intel, MU_Want, MU_Rs, MU_Q[4];
 static int MU_Need, MU_Qn;
 static uint32_t MU_Ign;

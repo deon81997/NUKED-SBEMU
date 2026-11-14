@@ -342,7 +342,7 @@ static Ring      XEp0[MAX_DEV];
 static volatile int XCmdDone, XCtlDone;
 static uint32_t  XCmdPh; static int XCmdCC, XCmdSlot, XCtlCC;
 static volatile int Busy;
-static int       Inited, Light, Settling;
+static int       Inited, Light, Settling, Pump;
 
 /* short trace of what happened (start-up report / SBDETAIL), oldest first, stops when full */
 static char      Trace[8192]; static int TraceN, TraceOff;
@@ -2436,23 +2436,25 @@ int  USBPAD_MidiRoom(void) { return MidiPipe < 0 ? MFIFO : MFIFO - (int)(MHead -
 static void mout_poll(int k);
 /* beta.121: the MPU-401's "busy" (DRR) bit for /MUSB: the queue is nearly full, so the game waits as it would for a
  * real MPU-401 + a 31250-baud cable instead of losing MIDI. From the port trap (like the game port's light poll):
- * the OUT pipe is moved on here too, so a game that polls with interrupts off still gets through. Never longer
- * than 0.2 s in a row (a device that stopped taking MIDI cannot hang the game: the bytes are dropped then). */
+ * the OUT pipe is moved on here too (not xHCI: its completions come from the event ring), so a game that polls with
+ * interrupts off still gets through. The game waits as long as the queue moves; 1 s without any progress and it is
+ * let through (a device that stopped taking MIDI cannot hang the game: the bytes are dropped then). */
 #define MBUSY_ROOM 96
 int USBPAD_MidiBusy(void)
 {
-    static uint64_t since, lastpump;
+    static uint64_t since, lastpump; static unsigned seen;
     uint64_t t;
     if (MidiPipe < 0 || MFIFO - (int)(MHead - MTail) >= MBUSY_ROOM) { since = 0; return 0; }
     t = tsc();
-    if (Inited && !Busy && t - lastpump > us2c(200))
+    if (Inited && !Busy && t - lastpump > us2c(200) && HC[P[MidiPipe].hc].type != T_XHCI)
     {
         lastpump = t;
-        Busy = 1; Light = 1; mout_poll(MidiPipe); Busy = 0;
+        Busy = 1; Light = 1; Pump = 1; mout_poll(MidiPipe); Pump = 0; Busy = 0;
         if (MidiPipe < 0 || MFIFO - (int)(MHead - MTail) >= MBUSY_ROOM) { since = 0; return 0; }
     }
-    if (!since) { since = t; ++MidiBusyN; }
-    if (t - since > us2c(200000)) { if (!MidiBusyTmo++) midi_last("busy for 0.2 s (device not taking MIDI): game let through"); return 0; }
+    if (!since) { since = t; seen = MTail; ++MidiBusyN; }
+    else if (seen != MTail) { since = t; seen = MTail; }            /* the cable takes MIDI: keep the game waiting */
+    if (t - since > us2c(1000000)) { if (!MidiBusyTmo++) midi_last("no progress for 1 s (device not taking MIDI): game let through"); return 0; }
     return 1;
 }
 void USBPAD_MidiInfo(USBPAD_MidiInfoT* m)
@@ -2477,6 +2479,7 @@ void USBPAD_MidiStats(uint32_t* sent, uint32_t* dropped, uint32_t* errors, uint3
 #define ILEN(q) ((q)->mps > 64 ? 64 : (q)->mps)
 #define MPACE_BPS 3125ULL               /* MIDI cable: 31250 baud, 10 bits a byte */
 #define MPACE_BURST 128
+#define MPACE_CHUNK 48                  /* while more waits: send pieces of at least this many bytes */
 #define MOUTB 256                       /* MIDI OUT: bytes per transfer (64 event packets; obuf = the pipe's ibuf area) */   /* IN transfer size (high-speed bulk MIDI: 512-byte packets, 64 asked for) */
 static int ArmSync;   /* arm_in: oslow rewrite right now (start_in has skipped the ED and waited already) */
 static void arm_in(int k)
@@ -2679,6 +2682,7 @@ static int poll_in(int k)
         uint32_t cc;
         if (q->opend)
         {   /* oslow stage 2, once two frames have started since the ED was skipped */
+            if (Pump) return 0;                                     /* MPU trap pump: no ED rewrite (left to the poll) */
             if (((ord(h, 0x3C) - q->ofn) & 0xFFFF) >= 2) { q->opend = 0; ArmSync = 1; arm_in(k); ArmSync = 0; }
             return 0;
         }
@@ -2692,6 +2696,8 @@ static int poll_in(int k)
             fl(e, 16);
             if (!(e[0] & ED_SKIP) && (e[2] & ~0xFUL) == e[1] && e[1] != PHYS(t))
             {
+                if (Pump) return 0;                                 /* beta.122: the lost-TD repair only from the polls -
+                                                                     * from the MPU trap it caught QEMU's OHCI mid-packet */
                 fl(q->td, 32);
                 if (OTD_CC(t[0]) < 0xE) return 0;                   /* finished meanwhile: next poll takes it */
                 if (!HC[h].oslow) trace("[OHCI %d lost a TD: ED rewrite per transfer from now] ", h + 1);
@@ -2800,16 +2806,6 @@ static void mout_poll(int k)
 {
     Pipe* q = &P[k];
     unsigned t, n, i, maxn;
-    if (q->busy && tsc() - q->ostart > us2c(MOUT_TMO))
-    {   /* not taken (NAK) for too long; the light poll (game port reads) leaves it to the next full poll */
-        if (Light) return;
-        if (HC[q->hc].type == T_XHCI || ++q->otmo >= MOUT_DROP) { midi_drop(k, "OUT not taken by the device (NAK) 3 times for 0.5 s"); return; }
-        trace("[midi] OUT transfer not taken in 0.5 s (%d in a row): taken back, dropped; CLEAR_FEATURE next\n", q->otmo);
-        midi_last("OUT not taken in 0.5 s (MIDI piece lost)");
-        TRACE_Event(TR_USB, "midi: OUT not taken in 0.5 s (%d)", q->otmo);
-        mout_cancel(k);
-        q->busy = 0; q->needclr = 1; ++MidiErr;
-    }
     if (q->busy)
     {
         int r;
@@ -2825,15 +2821,29 @@ static void mout_poll(int k)
                 if (cs & TD_ERRMASK) { r = (cs & TD_STALL) ? -2 : -1; break; }
                 ++ok;
             }
-            if (r == 0) return;
-            fl(PQ(q->hc, k), 16);
-            if (r > 0 && !(PQ(q->hc, k)[1] & LP_T)) return;           /* QH not moved on yet (see poll_in) */
-            if (ok & 1) q->tog ^= 1;
-            if (r < 0) { PQ(q->hc, k)[1] = LP_T; fl(PQ(q->hc, k), 16); }
+            if (r != 0)
+            {
+                fl(PQ(q->hc, k), 16);
+                if (r > 0 && !(PQ(q->hc, k)[1] & LP_T)) return;       /* QH not moved on yet (see poll_in) */
+                if (ok & 1) q->tog ^= 1;
+                if (r < 0) { PQ(q->hc, k)[1] = LP_T; fl(PQ(q->hc, k), 16); }
+            }
         }
         else r = poll_in(k);
-        if (r == 0) return;
-        q->busy = 0;
+        if (r == 0)
+        {   /* beta.122: the timeout is checked only after the transfer was looked at - a poll that came late (the
+             * game polling the MPU-401 trap) no longer takes a finished transfer for a NAK (xHCI dropped the device) */
+            if (tsc() - q->ostart <= us2c(MOUT_TMO)) return;
+            /* not taken (NAK) for too long; the light poll (game port reads) leaves it to the next full poll */
+            if (Light) return;
+            if (HC[q->hc].type == T_XHCI || ++q->otmo >= MOUT_DROP) { midi_drop(k, "OUT not taken by the device (NAK) 3 times for 0.5 s"); return; }
+            trace("[midi] OUT transfer not taken in 0.5 s (%d in a row): taken back, dropped; CLEAR_FEATURE next\n", q->otmo);
+            midi_last("OUT not taken in 0.5 s (MIDI piece lost)");
+            TRACE_Event(TR_USB, "midi: OUT not taken in 0.5 s (%d)", q->otmo);
+            mout_cancel(k);
+            q->busy = 0; q->needclr = 1; ++MidiErr;
+        }
+        else q->busy = 0;
         if (r < 0)
         {   /* that piece is lost */
             ++MidiErr;
@@ -2841,7 +2851,7 @@ static void mout_poll(int k)
             mlog(r == -2 ? "OUT stall: CLEAR_FEATURE next" : "OUT transfer error (CRC / timeout / babble): dropped");
             midi_last(r == -2 ? "OUT stall (MIDI piece lost)" : "OUT transfer error (MIDI piece lost)");
         }
-        else
+        else if (r > 0)
         {
             MidiSent += (unsigned)q->olen / 4; q->otmo = 0; q->ostall = 0;
             if (q->ofirst == 1) { q->ofirst = 2; mlog("first OUT transfer done: the device takes MIDI"); }
@@ -2878,7 +2888,8 @@ static void mout_poll(int k)
             if ((int)(w + b) > q->otok) break;
             w += b;
         }
-        if (!j) { ++MidiPaced; return; }                              /* the cable is still full: next poll */
+        if (!j || (j < n && w < MPACE_CHUNK)) { ++MidiPaced; return; }   /* the cable is still full: a later poll sends a
+                                                                     * bigger piece (few transfers: NEC OHCI rewrites the ED for each) */
         n = j; q->otok -= (int)w;
     }
     for (i = 0; i < n; ++i)

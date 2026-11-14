@@ -13,6 +13,6 @@ chk "MENU state      " '^MENU USB MIDI: .*(0763:0150) on .*, active' '^MENU'
 chk "GAMETEST        " '^GAMETEST: USB MIDI: .*active' '^GAMETEST'
 chk "MPUTEST /USB    " '^USB MIDI: PASS' 'USB MIDI:'
 chk "SBDIAG USB      " 'MPU-401 mode uart, .* 0 dropped, 0 USB errors' 'device'
-r=$(python3 "$H/midicap.py" $D "$H/fakemidi-$HC-menu.log" | tail -n 1); echo "Duke 3D bytes   : $r ($(python3 "$H/midicap.py" $D --quiet | head -n 1 | cut -d, -f1-3))"
+r=$(python3 "$H/midicap.py" $D "$H/fakemidi-$HC-menu.log" | tail -n 1); echo "Duke 3D bytes   : $r ($(python3 "$H/midicap.py" $D --quiet 2>/dev/null | head -n 1 | cut -d, -f1-3))"
 echo "$r" | grep -q PASS || F=1
 rm -f $D; [ $F = 0 ] && echo "menumidi $HC: PASS" || echo "menumidi $HC: FAIL"; exit $F

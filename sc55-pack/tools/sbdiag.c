@@ -241,7 +241,7 @@ int main(int argc, char** argv)
         if (!sbemu_musb(&g_mu)) { printf("USB MIDI: SBEMU (beta.121+) is not loaded.\n"); return 1; }
         printf("%s\n", musb_line(&g_mu, l, sizeof l));
         printf("  device %s, MPU-401 mode %s, %lu packets sent, %lu dropped, %lu USB errors, %lu queued, %lu MIDI IN\n"
-               "  the game waited for the cable %lu times (%lu waits cut short at 0.2 s), %lu intelligent-mode bytes ignored%s\n",
+               "  the game waited for the cable %lu times (%lu waits cut short: no progress for 1 s), %lu intelligent-mode bytes ignored%s\n",
                g_mu.id, g_mu.mpu, g_mu.sent, g_mu.drop, g_mu.err, g_mu.q, g_mu.in, g_mu.busy, g_mu.btmo, g_mu.ign,
                g_mu.cap ? ", recording (/MIDICAP)" : "");
         return !strcmp(g_mu.state, "active") ? 0 : 1;

@@ -117,7 +117,12 @@ static int usb_check(void)
 {   /* after the tune: did SBEMU send it all? 0 = yes, 3 = MIDI lost */
     char l[200];
     if (!g_usb) return 0;
-    { uclock_t end = uclock() + UCLOCKS_PER_SEC * 2; do sbemu_musb(&g_mu); while (g_mu.q && uclock() < end); }
+    {   /* until the queue is empty and the last transfer is in (sent stops moving), 3 s at most */
+        uclock_t end = uclock() + UCLOCKS_PER_SEC * 3; unsigned long prev;
+        sbemu_musb(&g_mu);
+        do { prev = g_mu.sent; { uclock_t w = uclock() + UCLOCKS_PER_SEC / 4; while (uclock() < w) {} } sbemu_musb(&g_mu); }
+        while ((g_mu.q || g_mu.sent != prev) && uclock() < end);
+    }
     if (!g_ui) printf("%s\n  this test: %lu packets sent, %lu dropped, %lu errors, waited %lu times for the cable\n", musb_line(&g_mu, l, sizeof l),
         g_mu.sent - g_mu0.sent, g_mu.drop - g_mu0.drop, g_mu.err - g_mu0.err, g_mu.busy - g_mu0.busy);
     return strcmp(g_mu.state, "active") || g_mu.drop != g_mu0.drop || g_mu.err != g_mu0.err || g_mu.sent == g_mu0.sent ? 3 : 0;

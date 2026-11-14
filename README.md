@@ -97,6 +97,8 @@
 
 <picture><img src="docs/90s/vox-sec-tv.gif" width="140" align="right" alt=""></picture>
 
+<picture><img src="docs/90s/new.gif" alt="NEW!"></picture> **11/14/2026: beta.122.** **USB MIDI plays the right notes!!** With a USB MIDI cable (M-Audio Uno) on a real SC-55, games could play wrong instruments, hang notes or lose GS set-up SysEx: at game start they send faster than a MIDI cable carries and SBEMU's queue overflowed. SBEMU now feeds the cable at its real speed and tells the game to wait, like a real MPU-401; intelligent-mode games get proper answers and their command bytes no longer land in the music. Tested byte for byte (what the game wrote vs what a fake Uno received) with Duke 3D, Heretic, Descent and Miles/GS/MT-32/intelligent-mode streams: zero differences. MENU, SETTINGS, MPUTEST /USB, GAMETEST and `SBDIAG USB` show the device, port, state and last error; `/MIDICAP:1` + `SBDIAG MIDICAP` record a game for a bug report.
+
 <picture><img src="docs/90s/new.gif" alt="NEW!"></picture> **11/14/2026: beta.121.** **Faster 3D pictures!!** New `WCSET` turns on write-combining (an MTRR) for the VESA frame buffer on Pentium Pro/II/III/M and newer CPUs: MENU and MIDPLAY switch it on while they run and undo it at exit. MENU Settings > Fast video picks AUTO, ON (kept for games) or OFF; Tests > Video speed measures the frame buffer with it off and on. Works with HIMEM only and JEMM; refused under EMM386/QEMM and Windows. SBEMU itself is unchanged.
 
 <picture><img src="docs/90s/new.gif" alt="NEW!"></picture> **11/14/2026: beta.120.** **No more freeze with SATA in Enhanced mode!!** An ASUS P5PE-VM froze with SC55 while its BIOS had SATA on "Enhanced"; "Compatible" was fine. In Enhanced mode the disk controller shares a PCI interrupt with the sound card, and the Audigy/Live driver claimed every interrupt on it, so the disk's was lost. It now takes only its own. SC55 also shows a yellow warning when a native-mode disk controller shares the sound card IRQ, and SBDETAIL.TXT lists every disk controller and its IRQ.
@@ -105,10 +107,10 @@
 
 <picture><img src="docs/90s/new.gif" alt="NEW!"></picture> **11/14/2026: beta.118.** **MENU knows when SBEMU is loaded!!** MENU said "Not loaded" when SBEMU was running but its MPU-401 did not answer MENU (seen on an ASUS P5PE-VM; also with Protected mode off). MENU now also asks the loaded SBEMU directly, so it shows Loaded (with "MPU ?" if the MPU-401 is silent), or "Unknown" instead of a wrong "Not loaded". `SC55MENU /STATUS` prints the version and mode SBEMU runs in; BUGREP.TXT has it.
 
-<picture><img src="docs/90s/new.gif" alt="NEW!"></picture> **11/14/2026: beta.117.** **Disc swaps show at once!!** After Ctrl+Alt+PgDn switched the disc of a multi-disc set (.MDM), drive M: kept showing the old disc for up to 7 seconds if you had just used it: the CD letter program (SHSUCDX) only asked whether the disc had changed after 7 seconds of quiet. Now it asks after a tenth of a second, so DIR or a game's "insert disc 2" prompt sees the new disc right away. Plus in the 3D menu (Panels, 640x480) a long grey item no longer runs under its "start the SC-55 first" box. Same speed as before (SBEMU did not change).
-
 <details>
 <summary><b>&gt;&gt; Older news &lt;&lt;</b></summary>
+
+<picture><img src="docs/90s/new.gif" alt="NEW!"></picture> **11/14/2026: beta.117.** **Disc swaps show at once!!** After Ctrl+Alt+PgDn switched the disc of a multi-disc set (.MDM), drive M: kept showing the old disc for up to 7 seconds if you had just used it: the CD letter program (SHSUCDX) only asked whether the disc had changed after 7 seconds of quiet. Now it asks after a tenth of a second, so DIR or a game's "insert disc 2" prompt sees the new disc right away. Plus in the 3D menu (Panels, 640x480) a long grey item no longer runs under its "start the SC-55 first" box. Same speed as before (SBEMU did not change).
 
 <picture><img src="docs/90s/new.gif" alt="NEW!"></picture> **11/14/2026: beta.116.** **Every program tells you its version!!** Type `MIDPLAY /VER` (or SBEMU, SBSET, MENU, CDGUI, SBDIAG, any of the pack's EXEs) and it prints which NUKED SB-EMU version it came from, e.g. `MIDPLAY.EXE: NUKED SB-EMU 1.0.0-beta.116-usb-sc55`. BUGREP.TXT now lists every program's version, so a mixed-up install shows at once. Nothing else changed.
 
