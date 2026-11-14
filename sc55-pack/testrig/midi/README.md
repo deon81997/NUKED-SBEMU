@@ -1,5 +1,16 @@
 # USB MIDI test rig
 
+## beta.123: MIDI output switch without a restart
+- `switch.sh rerun|mout|hotkey` (S=/tmp/scr: `mkswitch.py /tmp/scr` + MPUPLAY.EXE + TimGM6mb as TIM.SF2): the emulated
+  synth is the SoundFont; `rerun` = SBEMU @OPT0 (/MUSB:0) -> SBEMU @OPT1 (/MUSB:1) again -> back -> again (the user's
+  SETTINGS + SC55 way), `mout` = 2 fake devices (rig.py FAKEMIDI2=1: 0763:0151 "Second MIDI Cable") and /MOUT:USB1,
+  USB2, NEXT, USB1, `hotkey` = Ctrl+Alt+F11 x4 (rig.py --keys T:qemu-key+holdms,..., '!cmd' = monitor command; QEMU
+  needs a 300 ms hold). midicap.py follows the capture's port-2 switch records and port-3 SBEMU-made bytes, splits
+  U pages per slot (cable nibble), matches each fake log to its slot and checks every switch to USB replays every
+  channel's program. Run them one at a time (fixed key times; 2 VMs on 2 CPUs boot too slowly).
+- Results beta.123: switch.sh rerun, mout, hotkey PASS; gamecap duke rm intel (uhci), gssysex (xhci), miles (ehcicc),
+  menumidi xhci, unomatrix quick PASS (sbemu-dos71-ohci QEMU-LIMIT, as beta.121/122); menustat 5/5 on the zip.
+
 ## beta.122: byte-exact game streams (wrong notes on the real Uno + SC-55)
 - SBEMU `/MIDICAP:1` keeps what the game writes to the MPU-401 (G pages) and every USB MIDI packet sent (U pages) in
   4 KB pages tagged "SBMIDCAP"; `SBDIAG MIDICAP FILE` writes them (users), `rig.py --dump FILE` saves the guest RAM

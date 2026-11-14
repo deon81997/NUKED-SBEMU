@@ -1,7 +1,11 @@
-NUKED SB-EMU - REAL HARDWARE CHECKLIST (beta.114)
+NUKED SB-EMU - REAL HARDWARE CHECKLIST (beta.123)
 Things an emulator cannot confirm. Tick each one; for any failure keep
 C:\SC55\BUGREP.TXT (MENU > Tests > Bug report) and CRASH.TXT if there is one.
 
+[ ] beta.123 switch without restart: SC55 (emulated SC-55), MENU > Sound >
+    "MIDI to: USB 1 ..." -> the SC-55 module plays; "MIDI to: SC-55" -> back.
+    In Duke 3D: Ctrl+Alt+F11 a few times while music plays: note top left,
+    beeps, the song keeps its instruments on both. SETTINGS USB, SC55 again.
 [ ] beta.121 M-Audio Uno -> real SC-55, wrong notes. SC55 with SETTINGS >
     MIDI synth = USB MIDI device, started as SC55 /MIDICAP:1. MENU status panel
     shows the Uno ("Uno ... on"); MENU > Tests > USB MIDI test: scale, chord,

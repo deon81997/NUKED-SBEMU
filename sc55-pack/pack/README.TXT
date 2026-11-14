@@ -557,6 +557,8 @@ CONTENTS
      /MUSB:1               send MIDI to a USB MIDI device instead (class
                            compliant, e.g. M-Audio Uno; section 10b). Needs
                            /JOY:1; the SC-55 is not loaded then.
+     /MOUT:x               MIDI output: SYNTH, USB, USB1, USB2 or NEXT; on a
+                           loaded SBEMU it switches at once (beta.123)
      /MIDICAP:1            record the game's MPU-401 bytes and the USB MIDI
                            packets for SBDIAG MIDICAP (bug reports; 320 KB)
      /VMPU[:0]             virtual MPU-401 on (SC-55 or SoundFont); /VMPU=0
@@ -1226,6 +1228,22 @@ CONTENTS
      and command parameters kept out of the music; the MPU-401's own
      sequencer is not emulated. A SysEx that starts before the last one
      ended no longer loses bytes.
+   - beta.123: SWITCH WITHOUT A RESTART. The emulated synth (SC-55,
+     SoundFont or MT-32) stays loaded even with USB MIDI chosen, and up to
+     two USB MIDI devices can be plugged in; the MIDI goes to one of them
+     and can be moved at any time:
+       MENU > Sound > "MIDI to: ..." items (the one in use says "now");
+       SBEMU /MOUT:SYNTH, /MOUT:USB, /MOUT:USB1, /MOUT:USB2, /MOUT:NEXT;
+       SETTINGS > MIDI synth, then SC55 again (it switches the loaded
+       SBEMU instead of saying "restart");
+       Ctrl+Alt+F11 inside a game: next output (synth -> USB 1 -> USB 2),
+       a note in the top left corner (text and 320x200 screens) and 1-3
+       beeps (1 = emulated synth, 2 = USB 1, 3 = USB 2).
+     The old output's notes stop; the new one first gets the last GM/GS
+     reset and SysEx, then every channel's bank, instrument, controllers,
+     pitch bend range and pitch bend, so a song keeps playing with the
+     right instruments. The emulated synth uses no CPU while USB has the
+     music. Without ROMs or a SoundFont there is only USB to switch to.
    - Where to see it: MENU's status panel (device, on / plug in / out /
      error), MENU > Tests > "USB MIDI test (MPUTEST /USB)", SETTINGS (MIDI
      synth line), SBDIAG USB (device, port, state, counters, last error),

@@ -1,3 +1,23 @@
+## beta.123 (2026-11-14, DOS session): switch MIDI output (emulated synth <-> USB MIDI devices) without a restart
+- User: "start SC55 with emulation, pick USB MIDI in MENU/SETTINGS, run SC55 again - shouldn't it just change?" (it did
+  not: a re-run only copied options; /MUSB also skipped loading the synth). Asked: synth <-> USB and between USB
+  devices; MENU item, command line and in-game hotkey.
+- Done: main.c MAIN_MPU_Route (trap -> capture, pending hotkey switch, then VMPU_MPU or the /MUSB front end), MIDI
+  state tracker TK_* (last GM/GS/XG/MT-32 reset + SysEx <= 2 KB, per channel CCs incl. bank, program, RPN 0 range,
+  pitch bend, running status / half message), MAIN_SwitchOut (silence old: CC64/123/120 x16, replay to new), AMIS 07h
+  (ECX 0 synth, 1.. slot, 0x80 USB, 0xFE next), /MOUT:SYNTH|USB|USB1|USB2|NEXT (start or re-run), re-run with
+  /MUSB:0|1 switches (SBSET now writes /MUSB:0 too), synth always loaded with /MUSB (idle: no render while USB), USB MIDI
+  flag always on with /JOY:1, MAIN_SynthOK (ROMs/SF found) else USB only. usbpad.c: MAX_PIPE 8 (M_HC 0x5000), 2 USB
+  MIDI slots (kept per vid:pid across replug), packets tagged with the slot in the cable nibble (stripped on send),
+  midi_skipdead, USBPAD_MidiSlot/Target. vdiag.c: Ctrl+Alt+F11 (BIOS shift flags too), DIAG_Toast 2 s note top left
+  (text/13h) + 1-3 beeps (PIT ch2). AMIS 05h: OUT= SYN= |U1..|SYNTH=. MENU Sound "MIDI to: ..." items (SBEMU /MOUT:..),
+  /STATUS "MENU MIDI output:", SBDIAG USB lists slots; MPUTEST/GAMETEST/SBDIAG use out>0. README.TXT, HWTEST, news.
+- Tests: testrig/midi/README.md beta.123 (switch.sh rerun/mout/hotkey PASS, regression PASS, menustat 5/5).
+- Not done: real hardware; 86Box speed (SC-55 path unchanged while synth has the music; with USB the synth is idle).
+- Hardware ask: HWTEST beta.123 item (MENU MIDI to, Ctrl+Alt+F11 in Duke, SETTINGS + SC55 again) + beta.121/122 item.
+- Next 3 steps: 1) user's Uno + SC-55 results; 2) MENU: keep the choice for next start from the MENU items (now only
+  SETTINGS saves); 3) MIDI IN routing per slot (only the target's IN is meaningful today).
+
 ## beta.122 (2026-11-14, DOS session): USB MIDI (M-Audio Uno -> real SC-55) wrong notes, MENU "?" for USB MIDI, tests blind to /MUSB
 - Causes (main.c MAIN_MPU_330/331 = the /MUSB path, VMPU off): only FFh/3Fh ACKed; intelligent-mode command parameter
   bytes went out as MIDI (notes); status port never "busy", so game bursts (GS reset + set-up SysEx + all channels)

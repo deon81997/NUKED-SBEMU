@@ -83,7 +83,7 @@ def main():
     t0 = time.time()
     for kt, kk in sorted(keys, key=lambda x: float(x[0])):
         while time.time() - t0 < float(kt) and q.poll() is None: time.sleep(0.2)
-        mon(sock, kk[1:] if kk.startswith('!') else 'sendkey ' + kk)   # '!cmd' = a monitor command (screendump x.ppm)
+        mon(sock, kk[1:] if kk.startswith('!') else 'sendkey ' + kk.replace('+', ' '))   # '!cmd' = a monitor command (screendump x.ppm)
     if hot:
         time.sleep(hot); mon(sock, 'device_del midi'); time.sleep(3)
         mon(sock, 'chardev-remove midi')

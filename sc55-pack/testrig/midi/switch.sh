@@ -13,8 +13,8 @@ P='C:\T\MPUPLAY C:\T\'
 case $C in
   rerun)  RUN="SBEMU /VMPU /JOY:1 /MIDICAP:1 @C:\\T\\OPT0.TXT|${P}SWA.TXT > C:\\OUT.TXT|SBEMU /VMPU @C:\\T\\OPT1.TXT >> C:\\OUT.TXT|${P}SWB.TXT >> C:\\OUT.TXT|SBEMU /VMPU @C:\\T\\OPT0.TXT >> C:\\OUT.TXT|${P}SWC.TXT >> C:\\OUT.TXT|SBEMU /VMPU @C:\\T\\OPT1.TXT >> C:\\OUT.TXT|${P}SWD.TXT >> C:\\OUT.TXT|SC55MENU C:\\SC55 /STATUS >> C:\\OUT.TXT"; N=4 ;;
   mout)   HC=xhci; F2=1; RUN="SBEMU /VMPU /JOY:1 /VSF:C:\\T\\TIM.SF2 /MIDICAP:1|${P}SWA.TXT > C:\\OUT.TXT|SBEMU /MOUT:USB1 >> C:\\OUT.TXT|${P}SWB.TXT >> C:\\OUT.TXT|SBEMU /MOUT:USB2 >> C:\\OUT.TXT|${P}SWC.TXT >> C:\\OUT.TXT|SBEMU /MOUT:NEXT >> C:\\OUT.TXT|${P}SWD.TXT >> C:\\OUT.TXT|SBEMU /MOUT:USB1 >> C:\\OUT.TXT|${P}SWB.TXT >> C:\\OUT.TXT|SBDIAG USB >> C:\\OUT.TXT"; N=5 ;;
-  hotkey) F2=1; K="--keys 45:ctrl-alt-f11 300,58:ctrl-alt-f11 300,71:ctrl-alt-f11 300,84:ctrl-alt-f11 300"
-          RUN="SBEMU /VMPU /JOY:1 /VSF:C:\\T\\TIM.SF2 /MIDICAP:1|${P}SWA.TXT > C:\\OUT.TXT|${P}SWS.TXT >> C:\\OUT.TXT"; N=5 ;;
+  hotkey) F2=1; K="--keys 45:ctrl-alt-f11+300,58:ctrl-alt-f11+300,71:ctrl-alt-f11+300,84:ctrl-alt-f11+300"
+          RUN="SBEMU /VMPU /JOY:1 /VSF:C:\\T\\TIM.SF2 /MIDICAP:1|${P}SWA.TXT > C:\\OUT.TXT|${P}SWS.TXT >> C:\\OUT.TXT|${P}SWS.TXT >> C:\\OUT.TXT"; N=5 ;;
   *) echo "unknown case FAIL"; exit 2 ;;
 esac
 D=/tmp/switch-$C$RIGPORT.mem; rm -f $D
