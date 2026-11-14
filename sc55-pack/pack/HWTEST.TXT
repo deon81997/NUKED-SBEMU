@@ -3,7 +3,7 @@ Things an emulator cannot confirm. Tick each one; for any failure keep
 C:\SC55\BUGREP.TXT (MENU > Tests > Bug report) and CRASH.TXT if there is one.
 
 [ ] beta.121 M-Audio Uno -> real SC-55, wrong notes. SC55 with SETTINGS >
-    MIDI synth = USB MIDI device and /MIDICAP:1 in SBOPTS. MENU status panel
+    MIDI synth = USB MIDI device, started as SC55 /MIDICAP:1. MENU status panel
     shows the Uno ("Uno ... on"); MENU > Tests > USB MIDI test: scale, chord,
     drums, "USB MIDI" on the SC-55 screen, PASS. Then Duke 3D, Doom/Heretic,
     Descent, Monkey Island 2, a Miles game, a GS game (each a minute; game

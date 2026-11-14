@@ -1,3 +1,28 @@
+## beta.122 (2026-11-14, DOS session): USB MIDI (M-Audio Uno -> real SC-55) wrong notes, MENU "?" for USB MIDI, tests blind to /MUSB
+- Causes (main.c MAIN_MPU_330/331 = the /MUSB path, VMPU off): only FFh/3Fh ACKed; intelligent-mode command parameter
+  bytes went out as MIDI (notes); status port never "busy", so game bursts (GS reset + set-up SysEx + all channels)
+  overflowed the 1024-packet queue -> lost program changes / note-offs / SysEx pieces; F0 inside an open SysEx lost up
+  to 2 bytes; SBDIAG side channel (DIAG_*) absent with /MUSB (GAMETEST/SBDIAG blind); MENU knew /MUSB only from SBOPTS.
+- Fix: main.c MU_* front end (ACK all, version/revision answers, D0-D7 / DF / E0-EF params, sequencer data ignored,
+  DIAG first, AC/AD still answered), status bit 6 = USBPAD_MidiBusy (queue < 96 free; waits while the queue moves, 1 s
+  without progress lets the game on; trap pump = light mout_poll, not on xHCI, no OHCI ED rewrite). usbpad.c: pacing
+  3125 B/s, 128-byte burst, pieces >= 48 bytes; timeout checked after the transfer was looked at (late poll was a
+  false NAK -> xHCI drop); product name (iProduct), port, state, last error -> AMIS 05h; /MIDICAP:1 capture pages
+  "SBMIDCAP" (AMIS 06h, ECX=-1 clears). sbemuchk.h sbemu_musb()/musb_line(). MENU status panel + /STATUS + 3D title,
+  Tests "USB MIDI test (MPUTEST /USB)", SETTINGS synth line, MPUTEST /USB (exit 3 = lost), GAMETEST /USB + screen +
+  GAMETEST.TXT, SBDIAG USB / MIDICAP [file], BUGREP "USB MIDI" block, README.TXT, HWTEST.TXT.
+- Tested (testrig/midi/README.md): gamecap.sh uhci miles gssysex mi2 intel rm duke heretic descent PASS; xhci gssysex
+  miles duke PASS; ehcicc gssysex miles heretic PASS; ohci gssysex PASS; menumidi.sh xhci PASS; beta.120 SBEMU on the 4
+  scripts FAIL. unomatrix quick PASS except sbemu-dos71-ohci QEMU-LIMIT: with rig.py now timer-period=2000 (real IRQ
+  rate) beta.121 binaries also hit QEMU's usb_cancel_packet assertion there (2/2) - QEMU bug. menustat 5/5 on the zip.
+- Not done: Monkey Island 2 / a real Miles game / a GS game (none free: scripts stand in); 86Box PII-450 speed run
+  skipped: default SC-55 path untouched (VMPU handler, no MIDI pipe), /MUSB can't run in 86Box (no USB pass-through).
+- Hardware ask (Uno + SC-55): HWTEST.TXT beta.121/122 item; send USBn.TXT (SBDIAG USB) + CAPn.BIN (SBDIAG MIDICAP) per
+  game; `python3 testrig/midi/midicap.py CAP1.BIN` checks what SBEMU sent vs the game's writes.
+- Next 3 steps: 1) user's Uno results; 2) if the real Uno still garbles: CAPn.BIN U pages vs game writes, try smaller
+  MPACE_BURST; 3) intelligent-mode sequencer (SoftMPU-style) only if a game needs it (IGN= count in SBDIAG USB).
+- Test downloads: DJGPP v3.4 (/tmp/dl/djgpp), rufus sparse (/tmp/dl/rufus), arj (apt), testgames/ unpacked to /tmp/g.
+
 ## beta.121 (2026-11-14, DOS session): WCSET write-combining shipped (Fast video)
 - Done: WCSET.EXE in the zip (rezip.py NEW list adds new EXEs), MENU Settings "Fast video (WCSET)" = WCSET /ASK,
   Tests "Video speed (WCSET)" = WCSET /BENCH (view WCBENCH.TXT); README.TXT "FAST VIDEO" under 3D MENU; README news

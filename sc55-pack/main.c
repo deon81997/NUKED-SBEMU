@@ -3366,7 +3366,13 @@ static void MAIN_TSR_Interrupt()
         {
             uint32_t pg = MAIN_TSRREG.d.ecx;
             if(!MAIN_Cap) { MAIN_TSRREG.w.flags |= CPU_CFLAG; return; }
-            if(pg < CAP_GP + CAP_UP) DPMI_LMemcpy(MAIN_TSRREG.d.ebx, DPMI_PTR2L(MAIN_Cap + pg * CAP_PG), CAP_PG);
+            if(pg == 0xFFFFFFFFUL)                      /* SBDIAG MIDICAP after writing the file: start again (next game) */
+            {
+                int i; uint32_t z = 0;
+                MAIN_CapG = MAIN_CapU = 0;
+                for(i = 0; i < CAP_GP + CAP_UP; i++) memcpy(MAIN_Cap + (size_t)i * CAP_PG + 16, &z, 4);
+            }
+            else if(pg < CAP_GP + CAP_UP) DPMI_LMemcpy(MAIN_TSRREG.d.ebx, DPMI_PTR2L(MAIN_Cap + pg * CAP_PG), CAP_PG);
             MAIN_TSRREG.d.ecx = CAP_GP + CAP_UP;
             MAIN_TSRREG.h.al = 0;
             MAIN_TSRREG.w.flags &= ~CPU_CFLAG;

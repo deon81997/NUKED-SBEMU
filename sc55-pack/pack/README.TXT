@@ -1230,11 +1230,11 @@ CONTENTS
      error), MENU > Tests > "USB MIDI test (MPUTEST /USB)", SETTINGS (MIDI
      synth line), SBDIAG USB (device, port, state, counters, last error),
      GAMETEST (screen + GAMETEST.TXT), SC55MENU /STATUS and BUGREP.TXT.
-   - For a bug report: start SBEMU with /MIDICAP:1 too (SET SBOPTS or
-     SETTINGS > SBEMU options), play the game for a minute, quit it, then
-     SBDIAG MIDICAP C:\SC55\MIDICAP.BIN: it holds what the game wrote to
-     the MPU-401 and every USB MIDI packet SBEMU sent (about 100,000 bytes
-     each; it stops when full).
+   - For a bug report: start the SC-55 as SC55 /MIDICAP:1, play the game
+     for a minute, quit it, then SBDIAG MIDICAP C:\SC55\CAP1.BIN: it holds
+     what the game wrote to the MPU-401 and every USB MIDI packet SBEMU
+     sent (the first ~100,000 bytes of each), then starts recording again
+     for the next game (CAP2.BIN ...).
 
 
 =============================================================================

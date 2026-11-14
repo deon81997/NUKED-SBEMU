@@ -163,7 +163,11 @@ static int midicap(const char* file)
     }
     fclose(f);
     if (!n) { printf("SBDIAG MIDICAP: SBEMU was not started with /MIDICAP:1 - nothing recorded.\n"); remove(file); return 1; }
-    printf("SBDIAG MIDICAP: %d pages written to %s (send it with BUGREP.TXT).\n", k, file);
+    {   /* start the recording again, so the next game gets its own file */
+        __dpmi_regs r; memset(&r, 0, sizeof r); r.h.ah = (unsigned char)id; r.h.al = 0x06; r.d.ecx = 0xFFFFFFFFUL; r.d.ebx = __tb;
+        __dpmi_int(0x2D, &r);
+    }
+    printf("SBDIAG MIDICAP: %d pages written to %s (send it with BUGREP.TXT); recording starts again.\n", k, file);
     return 0;
 }
 static void show(const char* argv0, const SUM* m)
