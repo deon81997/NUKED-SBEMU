@@ -1222,7 +1222,8 @@ static int MAIN_SpdifOpt(void)
     if(!v || !*v) return 1;
     if(!strcasecmp(v, "ONLY") || !strcmp(v, "2")) return 2;
     if(!strcmp(v, "0") || !strcasecmp(v, "OFF")) return 0;
-    return 1;
+    if(!strcmp(v, "1") || !strcasecmp(v, "ON")) return 1;
+    return -1;
 }
 
 //T1~T6 maps
@@ -2030,6 +2031,11 @@ int main(int argc, char* argv[])
     || MAIN_Options[OPT_VMIDIVOL].value < 0 || MAIN_Options[OPT_VMIDIVOL].value > 400)
     {
         MAIN_CPrintf(RED, "Error: Invalid volume (/VSBVOL and /VOPLVOL 0-100, /VMIDIVOL 0-400 percent).\n");
+        return 1;
+    }
+    if(MAIN_SpdifOpt() < 0)
+    {
+        MAIN_CPrintf(RED, "Error: Invalid /SPDIF (0 = analog only, 1 = analog + S/PDIF, ONLY = S/PDIF only).\n");
         return 1;
     }
     if(MAIN_Options[OPT_VCDA].value < 0 || MAIN_Options[OPT_VCDA].value > 400)

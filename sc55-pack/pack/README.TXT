@@ -573,6 +573,14 @@ CONTENTS
                            loaded SBEMU it switches at once (beta.123)
      /MIDICAP:1            record the game's MPU-401 bytes and the USB MIDI
                            packets for SBDIAG MIDICAP (bug reports; 320 KB)
+     /SPDIF:x              Sound Blaster Audigy S/PDIF out (beta.124): 1 =
+                           analog + S/PDIF (default), 0 = analog only, ONLY
+                           = S/PDIF only. 1 and ONLY switch the rear Digital
+                           Out / Center-Sub jack to digital (no Center/Sub
+                           then). Always 48 kHz. On a loaded SBEMU it
+                           switches at once; SBDIAG SPDIF shows it.
+     /SPDIFINV:1           the jack's analog/digital switch the other way
+                           round (try it when /SPDIF:1 gives no lock)
      /VMPU[:0]             virtual MPU-401 on (SC-55 or SoundFont); /VMPU=0
                            turns it off. Also switched on by /VSCROM, /VSCSET
                            or /VSF.
@@ -1496,6 +1504,17 @@ CONTENTS
   saved at once, so if the PC hangs while SBEMU starts, the last
   "[step]" line shows where. At the end a table shows how long each
   step took (since beta.73). SET SBEMUDETAIL=OFF turns it off.
+
+  AUDIGY DIGITAL OUT (S/PDIF, beta.124): Audigy 1 / 2 / 2 ZS / 4 PRO share
+  the rear 3.5 mm "Digital Out / Center-Sub" jack. SBEMU /SPDIF:1 (the
+  default) or /SPDIF:ONLY turns it into a coaxial S/PDIF out: the signal
+  is on the jack's TIP, so with a 3.5 mm stereo (TRS) to 2x RCA cable it
+  is the WHITE (left) RCA plug that goes to the receiver's COAXIAL input
+  (the red one stays free). Audigy 2 Value / Audigy 4 have their own
+  digital out. Check:  SBDIAG SPDIF  (card, mode, jack), then
+  SBDIAG TONE  (1 kHz tone left, right, both). No lock on the receiver:
+  SBEMU /SPDIFINV:1, then SBDIAG SPDIF again. /SPDIF:0 gives the jack
+  back to the Center/Sub speakers. The S/PDIF stream is always 48 kHz.
 
   PC FREEZES WITH SATA "ENHANCED" MODE (seen: ASUS P5PE-VM, ICH5):
   in Enhanced (native) mode the SATA/IDE controller uses a PCI IRQ that
