@@ -19,6 +19,7 @@
 #include "toolui.h"
 #include "doctor.h"
 #include "sbemuchk.h"
+#include "../vesawc.h"
 
 static int g_port = 0x330;
 static FILE* g_log;
@@ -234,10 +235,12 @@ int main(int argc, char** argv)
                "SBDIAG         show the report (saved to SBDIAG.TXT)\n"
                "SBDIAG STOP    stop measuring\n"
                "SBDIAG USB     USB MIDI (SBEMU /MUSB): device, port, state, counters, last error\n"
-               "SBDIAG MIDICAP [file]  what SBEMU /MIDICAP:1 recorded (game MPU bytes + USB MIDI packets)\n");
+               "SBDIAG MIDICAP [file]  what SBEMU /MIDICAP:1 recorded (game MPU bytes + USB MIDI packets)\n"
+               "SBDIAG WC      video write-combining (SBEMU /VWC): on, off or unavailable and why\n");
         return 0;
     }
     if (!stricmp(cmd, "MIDICAP")) return midicap(argc > 2 ? argv[2] : NULL);
+    if (!stricmp(cmd, "WC")) { char w[300]; int st = VESAWC_Status(w, sizeof w); printf("Video write-combining (SBEMU /VWC): %s\n", w); return st > 0 ? 0 : st == 0 ? 1 : 2; }
     g_muon = sbemu_musb(&g_mu) && g_mu.out > 0;
     if (!stricmp(cmd, "USB"))
     {
@@ -294,6 +297,7 @@ report:
     secs = d[F_MS] / 1000.0;
     out("SBDIAG - why the MIDI music is not at full speed\n");
     out("================================================\n");
+    { char w[300]; VESAWC_Status(w, sizeof w); out("Video write-combining (SBEMU /VWC): %s\n", w); }
     if (d[F_ISRN] == 0 || secs < 2)
     {
         out("Nothing measured yet. Run SBDIAG START, play the game with music, quit, then run SBDIAG.\n");

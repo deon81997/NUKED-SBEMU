@@ -134,6 +134,7 @@ SBEMU_SRC := sbemu/dbopl.cpp \
 	     utility.c \
 	     hdpmipt.c \
 		 irqguard.c \
+	     vesawc.c \
 
 ifeq ($(VSC55),1)
 SBEMU_SRC += sbemu/vmpu_sc55.c sbemu/vmpu_sf.c sbemu/vdiag.c sbemu/trace.c
@@ -224,10 +225,10 @@ output/gametest.exe: tools/gametest.c $(wildcard tools/*.h) output/packver.o
 	$(SILENTMSG) "CC\t$@\n"
 	$(SILENTCMD)$(CC) $(PACKVER) -O2 -Wall -march=i586 -o $@ $< output/packver.o -lm $(if $(filter 0,$(DEBUG)),-s,)
 
-output/sbdiag.exe: tools/sbdiag.c $(wildcard tools/*.h) output/packver.o
+output/sbdiag.exe: tools/sbdiag.c vesawc.c vesawc.h $(wildcard tools/*.h) output/packver.o
 	@mkdir -p $(dir $@)
 	$(SILENTMSG) "CC\t$@\n"
-	$(SILENTCMD)$(CC) $(PACKVER) -O2 -Wall -march=i586 -o $@ $< output/packver.o $(if $(filter 0,$(DEBUG)),-s,)
+	$(SILENTCMD)$(CC) $(PACKVER) -O2 -Wall -march=i586 -o $@ $< vesawc.c output/packver.o $(if $(filter 0,$(DEBUG)),-s,)
 
 USBTEST_SRC := tools/usbtest.c sbemu/usbpad.c sbemu/padmap.c sbemu/padconvl.c mpxplay/au_cards/pcibios.c mpxplay/au_cards/au_base.c \
 	sbemu/dpmi/dpmi.c sbemu/dpmi/dpmi_dj2.c sbemu/dpmi/xms.c sbemu/dpmi/dbgutil.c sbemu/dpmi/dpmi_tsr.c \

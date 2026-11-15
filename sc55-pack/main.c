@@ -39,6 +39,7 @@
 #include "hdpmipt.h"
 #include "serial.h"
 #include "irqguard.h"
+#include "vesawc.h"
 #include "utility.h"
 
 #include <au_cards/au_cards.h>
@@ -1107,6 +1108,7 @@ struct MAIN_OPT
 #endif
 #endif
     "/VCDA", "CD-Audio from uCDD (--sbemu-link) mounted CUE/BIN images: output gain in percent (0=off, 100=unity, 1-400)", 0, MAIN_SETCMD_BASE10,
+    "/VWC", "Video write-combining for the VESA frame buffer (more CPU for the music in VESA games): 0=off, 1=on (needs no EMM or JEMM; see README.TXT)", 0, MAIN_SETCMD_BASE10,
     "/CARDWD", "Sound card interrupt watchdog: 0=off, 1=on, 2=auto (on only for cards it was proven safe on: Ensoniq/SBPCI ES1371)", 2, MAIN_SETCMD_BASE10,
     "/VSBVOL", "Sound effects (digital Sound Blaster) volume in percent (0-100), on top of the game's own mixer", 100, MAIN_SETCMD_BASE10,
     "/VOPLVOL", "FM (OPL / AdLib) music volume in percent (0-100), on top of the game's own mixer", 100, MAIN_SETCMD_BASE10,
@@ -1185,6 +1187,7 @@ enum EOption
 #endif
 #endif
     OPT_VCDA,
+    OPT_VWC,
     OPT_CARDWD,
     OPT_VSBVOL,
     OPT_VOPLVOL,
@@ -2085,6 +2088,7 @@ int main(int argc, char* argv[])
 #endif
 
     //TSR installation check: update parameter & exit if already installed
+    VESAWC_Init(MAIN_Options[OPT_VWC].value, (MAIN_Options[OPT_VWC].setcmd & MAIN_SETCMD_SET) != 0, MAIN_D); /* vesawc.c, /VWC */
     MAIN_Step("checking for a resident SBEMU");
     MAIN_TSR_InstallationCheck();
     if(MAIN_Options[OPT_PADLOG].setcmd & MAIN_SETCMD_SET) { printf("SBEMU is not loaded.\n"); exit(1); }
