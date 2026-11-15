@@ -1,4 +1,4 @@
-NUKED SB-EMU - REAL HARDWARE CHECKLIST (beta.123)
+NUKED SB-EMU - REAL HARDWARE CHECKLIST (beta.124)
 Things an emulator cannot confirm. Tick each one; for any failure keep
 C:\SC55\BUGREP.TXT (MENU > Tests > Bug report) and CRASH.TXT if there is one.
 
@@ -34,6 +34,18 @@ DELL LATITUDE D810 (ICH6 UHCI + EHCI, SigmaTel AC'97, Dell keyboard controller)
 [ ] A 3D DOS game (Quake / Descent / Duke 3D) with SB sound + pad: no glitches.
 
 ASUS P5PE-VM (+ NEC uPD720101 USB card, wired Xbox 360 pad, Logitech receiver)
+[ ] beta.124 Audigy S/PDIF. Cable: 3.5 mm stereo (TRS) plug into the card's
+    rear "Digital Out / Center-Sub" jack (Audigy 2 Value / 4: its own
+    Digital Out), WHITE (left) RCA plug into the receiver's COAXIAL in.
+    1. SC55.BAT, then SBDIAG SPDIF > C:\SC55\SPDIF1.TXT  (CARD= name, MODE=
+       analog + S/PDIF, JACK=digital, RATE=48000).
+    2. SBDIAG TONE: receiver locks (48 kHz) and plays left, right, both;
+       front speakers play it too. Then a game with music.
+    3. SBDIAG SPDIF ONLY: tone on the receiver only, front speakers quiet.
+       SBDIAG SPDIF 0: receiver loses lock, front speakers play.
+    4. No lock in 2? SBEMU /SPDIFINV:1, SBDIAG TONE again; still none: try
+       the RED plug. Front speakers silent with /SPDIF:1 but fine with
+       SBDIAG SPDIF 0? Note it. Send SPDIF1.TXT + which plug/switch worked.
 [ ] beta.114 M-Audio Uno (froze the PC in beta.113 on every port). Boot as
     usual (Win98 boot menu > command prompt, HIMEM only, no QEMM/JEMM),
     Uno plugged into a board port, nothing else needed. In this order:
