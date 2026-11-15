@@ -573,7 +573,7 @@ CONTENTS
                            loaded SBEMU it switches at once (beta.123)
      /MIDICAP:1            record the game's MPU-401 bytes and the USB MIDI
                            packets for SBDIAG MIDICAP (bug reports; 320 KB)
-     /SPDIF:x              Sound Blaster Audigy S/PDIF out (beta.124): 1 =
+     /SPDIF:x              Sound Blaster Audigy S/PDIF out (beta.126): 1 =
                            analog + S/PDIF (default), 0 = analog only, ONLY
                            = S/PDIF only. 1 and ONLY switch the rear Digital
                            Out / Center-Sub jack to digital (no Center/Sub
@@ -1505,7 +1505,7 @@ CONTENTS
   "[step]" line shows where. At the end a table shows how long each
   step took (since beta.73). SET SBEMUDETAIL=OFF turns it off.
 
-  AUDIGY DIGITAL OUT (S/PDIF, beta.124): Audigy 1 / 2 / 2 ZS / 4 PRO share
+  AUDIGY DIGITAL OUT (S/PDIF, beta.126): Audigy 1 / 2 / 2 ZS / 4 PRO share
   the rear 3.5 mm "Digital Out / Center-Sub" jack. SBEMU /SPDIF:1 (the
   default) or /SPDIF:ONLY turns it into a coaxial S/PDIF out: the signal
   is on the jack's TIP, so with a 3.5 mm stereo (TRS) to 2x RCA cable it

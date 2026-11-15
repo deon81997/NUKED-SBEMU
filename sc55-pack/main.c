@@ -157,7 +157,7 @@ static DPMI_REG MAIN_Int1CREG;
 static BOOL MAIN_Int1COn;
 static void MAIN_Int1C();
 static BOOL MAIN_CdlOn;                     /* CD-Audio link up: INT 28h also serves it */
-extern int SBLIVE_SpdifMode, SBLIVE_SpdifInv;     /* beta.124: sc_sbliv.c, Audigy S/PDIF (/SPDIF, AMIS 08h) */
+extern int SBLIVE_SpdifMode, SBLIVE_SpdifInv;     /* beta.126: sc_sbliv.c, Audigy S/PDIF (/SPDIF, AMIS 08h) */
 int SBLIVE_SpdifSet(int mode, char *t, int n);
 static char MAIN_TracePath[260];            /* SBTRACE.TXT (flight recorder), next to SBEMULOG; empty = off */
 static void MAIN_CDService();
@@ -3612,7 +3612,7 @@ static void MAIN_TSR_Interrupt()
             MAIN_TSRREG.w.flags &= ~CPU_CFLAG;
         }
         return;
-        case 0x08: //beta.124: Audigy S/PDIF: ECX 0/1/2 = analog only / analog + S/PDIF / S/PDIF only, else query; text line into EBX (EDX = size)
+        case 0x08: //beta.126: Audigy S/PDIF: ECX 0/1/2 = analog only / analog + S/PDIF / S/PDIF only, else query; text line into EBX (EDX = size)
         {
             char t[200];
             int n = SBLIVE_SpdifSet(MAIN_TSRREG.d.ecx <= 2 ? (int)MAIN_TSRREG.d.ecx : -1, t, sizeof t);
@@ -3780,7 +3780,7 @@ static void MAIN_TSR_Interrupt()
             }
             if(MAIN_JOY_On) { CLIS(); VKBC_ReleaseAll(); STIL(); }   /* beta.125: nothing typed stays held across a re-run */
             if(OPT_CHANGED(OPT_SPDIF) || OPT_CHANGED(OPT_SPDIFINV))
-            {   /* beta.124: Audigy S/PDIF switched on the running card */
+            {   /* beta.126: Audigy S/PDIF switched on the running card */
                 char t[200];
                 SBLIVE_SpdifInv = MAIN_Options[OPT_SPDIFINV].value ? 1 : 0;
                 if(OPT_CHANGED(OPT_SPDIFINV) && !OPT_CHANGED(OPT_SPDIF)) { int m = SBLIVE_SpdifMode; SBLIVE_SpdifMode = 3; SBLIVE_SpdifSet(m, t, sizeof t); }

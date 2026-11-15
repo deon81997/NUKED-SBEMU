@@ -46,7 +46,7 @@
 static void snd_emu10kx_fx_init(struct emu10k1_card *card);
 
 #ifdef SBEMU
-/* beta.124: S/PDIF out on every Audigy (EMU10K2). SBEMU /SPDIF:0|1|ONLY sets SBLIVE_SpdifMode before the card starts;
+/* beta.126: S/PDIF out on every Audigy (EMU10K2). SBEMU /SPDIF:0|1|ONLY sets SBLIVE_SpdifMode before the card starts;
  * SBLIVE_SpdifSet() switches a running card (AMIS 08h, SBDIAG SPDIF). */
 int SBLIVE_SpdifMode = 1;                 /* 0 = analog only, 1 = analog + S/PDIF, 2 = S/PDIF only */
 int SBLIVE_SpdifInv = 0;                  /* /SPDIFINV:1: the shared jack's analog/digital bit the other way round */
@@ -941,7 +941,7 @@ static void snd_emu10kx_setrate(struct emu10k1_card *card,struct mpxplay_audioou
  dmabufsize=MDma_init_pcmoutbuf(aui,card->pcmout_bufsize,EMUPAGESIZE,0);
 
 #ifdef SBEMU
- /* beta.124: the EMU10K2 DSP mixes at a fixed 48 kHz (the voice engine resamples 11/22/44.1 kHz to it), so the S/PDIF
+ /* beta.126: the EMU10K2 DSP mixes at a fixed 48 kHz (the voice engine resamples 11/22/44.1 kHz to it), so the S/PDIF
   * stream is 48 kHz on every model, with channel status saying 48 kHz. Before, 44.1 kHz set the Audigy 2's S/PDIF
   * converter to 44.1 kHz while channel status said 48 (some receivers mute / click), and wrote register 76h on the
   * Audigy 1, which does not have it. */

@@ -305,7 +305,7 @@ static int spdif_cmd(int argc, char** argv)
         else if (!strcmp(argv[2], "1") || !stricmp(argv[2], "ON")) m = 1;
         else { printf("SBDIAG SPDIF [0|1|ONLY]\n"); return 2; }
     }
-    if (!sbemu_text(0x08, m, t, sizeof t)) { printf("S/PDIF: SBEMU beta.124+ is not loaded (run SC55 first).\n"); return 1; }
+    if (!sbemu_text(0x08, m, t, sizeof t)) { printf("S/PDIF: SBEMU beta.126+ is not loaded (run SC55 first).\n"); return 1; }
     spdif_show(t);
     if (g_log) fprintf(g_log, "%s\n", t);
     return strstr(t, "CARD=none") ? 1 : 0;
@@ -333,7 +333,7 @@ static int tone_cmd(int argc, char** argv)
     char t[256];
     if (secs < 1) secs = 1; if (secs > 60) secs = 60;
     if (sbemu_text(0x08, 0xFF, t, sizeof t)) spdif_show(t);
-    else printf("(SBEMU beta.124+ not found: the tone needs SBEMU's OPL3 emulation, /OPL:1)\n");
+    else printf("(SBEMU beta.126+ not found: the tone needs SBEMU's OPL3 emulation, /OPL:1)\n");
     for (i = 0; i < 0xF6; ++i) { opl(0, i, 0); opl(1, i, 0); }
     opl(1, 0x05, 1);                                           /* OPL3 mode: left / right bits */
     opl(0, 0x20, 0x21); opl(0, 0x23, 0x21);                    /* sustained, multiple 1 */

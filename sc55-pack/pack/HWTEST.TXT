@@ -50,7 +50,7 @@ DELL LATITUDE D810 (ICH6 UHCI + EHCI, SigmaTel AC'97, Dell keyboard controller)
 [ ] A 3D DOS game (Quake / Descent / Duke 3D) with SB sound + pad: no glitches.
 
 ASUS P5PE-VM (+ NEC uPD720101 USB card, wired Xbox 360 pad, Logitech receiver)
-[ ] beta.124 Audigy S/PDIF. Cable: 3.5 mm stereo (TRS) plug into the card's
+[ ] beta.126 Audigy S/PDIF. Cable: 3.5 mm stereo (TRS) plug into the card's
     rear "Digital Out / Center-Sub" jack (Audigy 2 Value / 4: its own
     Digital Out), WHITE (left) RCA plug into the receiver's COAXIAL in.
     1. SC55.BAT, then SBDIAG SPDIF > C:\SC55\SPDIF1.TXT  (CARD= name, MODE=

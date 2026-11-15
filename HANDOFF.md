@@ -1,3 +1,19 @@
+## beta.126 (2026-11-15, DOS session): Audigy S/PDIF out (/SPDIF, jack switch, SBDIAG SPDIF/TONE)
+- User: S/PDIF on every Audigy (1 / 2 / 2 ZS / 2 Value / 4), /SPDIF:0|1|ONLY (default 1 = analog + S/PDIF), shown in SBDIAG; S/PDIF
+  shares the rear 3.5 mm Digital Out / Center-Sub jack (tip = coax via TRS-to-RCA): /SPDIF:1 must switch that jack to digital.
+- Done: sc_sbliv.c SBLIVE_SpdifMode/Inv, snd_emu_spdif_jack (A_IOCFG GPOUT0 0x44 + HCFG GPOUT0 as ALSA; invert = CA0151 except SB0380;
+  CA0108 Value/A4: P16V reg 7Ah), DSP routing per mode, S/PDIF 48 kHz + SPCS0-2 rate bits, live switch SBLIVE_SpdifSet. main.c /SPDIF
+  (bad values refused), /SPDIFINV, AMIS 08h, re-run switch. SBDIAG SPDIF [0|1|ONLY], SBDIAG TONE [s]. README.TXT (section 7 + 15 "AUDIGY
+  DIGITAL OUT": jack TIP = WHITE/left RCA -> COAXIAL in), HWTEST beta.126 P5PE-VM item, README news (5 shown; beta.121/120 -> Older).
+- Merged onto beta.125 (keys): one sbemuchk.h sbemu_text(); AMIS 08h S/PDIF + 09h keys both in main.c; SBDIAG help/dispatch both.
+- Tests: testrig/spdif/run.sh ZIP (QEMU, CARD=none path: start, re-run /SPDIF:ONLY, SBDIAG SPDIF 0, bad value refused) PASS;
+  testrig/menustat 5/5 PASS. No Audigy in QEMU/86Box. Speed: init/option/AMIS code + EMU DSP microcode only; non-Audigy runtime
+  path unchanged (not re-measured). Zip = beta.125 zip + rezip.py.
+- Risk: CA0151 (Audigy 2/ZS): switching the jack clears A_IOCFG 0x44 incl. 0x40 (init's "unmute analog"), as ALSA does; HWTEST asks
+  whether front speakers stay on with /SPDIF:1. If not: keep 0x40, toggle only 0x04 on CA0151.
+- Next 3 steps: 1) P5PE-VM HWTEST beta.126 results (SPDIF1.TXT, plug, /SPDIFINV); 2) MENU Sound item for S/PDIF mode + SETTINGS save;
+  3) 86Box speed check if an EMU10K2 model ever appears.
+
 ## beta.125 (2026-11-14, DOS session): no random key presses in games (pads, USB keyboard, mouse -> KBC)
 - User: audit every place the pack injects keys / mouse bytes; generous dead zone + hysteresis, release-all on USB error, never
   inject while a real keyboard byte is pending, log every injected key's source (SBTRACE), 30-min idle soak = zero keys.
