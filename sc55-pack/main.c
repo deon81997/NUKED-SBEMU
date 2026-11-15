@@ -156,6 +156,8 @@ static DPMI_REG MAIN_Int1CREG;
 static BOOL MAIN_Int1COn;
 static void MAIN_Int1C();
 static BOOL MAIN_CdlOn;                     /* CD-Audio link up: INT 28h also serves it */
+extern int SBLIVE_SpdifMode, SBLIVE_SpdifInv;     /* beta.124: sc_sbliv.c, Audigy S/PDIF (/SPDIF, AMIS 08h) */
+int SBLIVE_SpdifSet(int mode, char *t, int n);
 static char MAIN_TracePath[260];            /* SBTRACE.TXT (flight recorder), next to SBEMULOG; empty = off */
 static void MAIN_CDService();
 /* BIOS joystick: INT 15h AH=84h answered from the USB pad. A small real-mode stub sends only AH=84h to SBEMU
@@ -1060,6 +1062,8 @@ struct MAIN_OPT
 
     "/O", "Select output. 0: headphone, 1: speaker (Intel HDA) or S/PDIF (Xonar DG)", 1, 0,
     "/VOL", "Set master volume (0-" STR(SBEMU_VOLUME_MAX) ")", 80, MAIN_SETCMD_BASE10,
+    "/SPDIF", "Sound Blaster Audigy S/PDIF out: 1 = analog + S/PDIF (the rear Digital Out / Center-Sub jack switched to digital), 0 = analog only, ONLY = S/PDIF only", (uintptr_t)"1", MAIN_SETCMD_STR,
+    "/SPDIFINV", "Audigy: the Digital Out jack's analog/digital switch the other way round (1 = use when /SPDIF:1 gives no digital lock)", 0, MAIN_SETCMD_BASE10,
 
     "/K", "Internal sample rate", 22050, MAIN_SETCMD_BASE10,
     "/FIXTC", "Fix time constant to match 11/22/44 kHz sample rate", TRUE, 0,
@@ -1143,6 +1147,8 @@ enum EOption
     OPT_FMCORE,
     OPT_OUTPUT,
     OPT_VOL,
+    OPT_SPDIF,
+    OPT_SPDIFINV,
     OPT_RATE,
     OPT_FIX_TC,
     OPT_SCLIST,
@@ -1205,6 +1211,16 @@ enum EOption
     OPT_PADLOG,
     OPT_COUNT,
 };
+
+/* /SPDIF:0|1|ONLY (2 = ONLY too) -> 0 analog only, 1 analog + S/PDIF, 2 S/PDIF only */
+static int MAIN_SpdifOpt(void)
+{
+    const char* v = (const char*)MAIN_Options[OPT_SPDIF].value;
+    if(!v || !*v) return 1;
+    if(!strcasecmp(v, "ONLY") || !strcmp(v, "2")) return 2;
+    if(!strcmp(v, "0") || !strcasecmp(v, "OFF")) return 0;
+    return 1;
+}
 
 //T1~T6 maps
 static const char* MAIN_SBTypeString[] =
@@ -2154,10 +2170,12 @@ int main(int argc, char* argv[])
     if(MAIN_Options[OPT_SC].value)
         aui.card_select_index = MAIN_Options[OPT_SC].value;
     aui.card_select_config = MAIN_Options[OPT_OUTPUT].value;
+    SBLIVE_SpdifMode = MAIN_SpdifOpt(); SBLIVE_SpdifInv = MAIN_Options[OPT_SPDIFINV].value ? 1 : 0;
     MAIN_D("Real mode support %s, protected mode support %s, QEMM/QPIEMU %s, HDPMI %s\n", enableRM ? "on" : "off", enablePM ? "on" : "off",
         MAIN_QEMM_Present ? "found" : "not found", MAIN_HDPMI_Present ? "found" : "not found");
     MAIN_Step("sound card init (AU_init)");
     AU_init(&aui, &fm_aui, &mpu401_aui);
+    { char t[200]; SBLIVE_SpdifSet(-1, t, sizeof t); MAIN_D("S/PDIF: %s\n", t); }
     if(!aui.card_handler)
     {
         MAIN_D("No usable sound card found (AU_init gave no card handler)\n");
@@ -3567,6 +3585,19 @@ static void MAIN_TSR_Interrupt()
             MAIN_TSRREG.w.flags &= ~CPU_CFLAG;
         }
         return;
+        case 0x08: //beta.124: Audigy S/PDIF: ECX 0/1/2 = analog only / analog + S/PDIF / S/PDIF only, else query; text line into EBX (EDX = size)
+        {
+            char t[200];
+            int n = SBLIVE_SpdifSet(MAIN_TSRREG.d.ecx <= 2 ? (int)MAIN_TSRREG.d.ecx : -1, t, sizeof t);
+            if(n > (int)sizeof t - 1) n = sizeof t - 1;
+            if(MAIN_TSRREG.d.edx < (uint32_t)n + 1) n = MAIN_TSRREG.d.edx ? (int)MAIN_TSRREG.d.edx - 1 : 0;
+            t[n] = 0;
+            if(MAIN_TSRREG.d.edx) DPMI_LMemcpy(MAIN_TSRREG.d.ebx, DPMI_PTR2L(t), n + 1);
+            MAIN_TSRREG.d.ecx = n;
+            MAIN_TSRREG.h.al = 0;
+            MAIN_TSRREG.w.flags &= ~CPU_CFLAG;
+        }
+        return;
         case 0x07: //beta.123: MIDI output switch: ECX 0 = emulated synth, 1.. = USB slot, 0x80 = USB (slot in use), 0xFE = next
         {   //AL = 0 done, CF + ECX 1 = no emulated synth, 2 = no USB MIDI; ECX out = the output now (0 / 1..)
             uint32_t to = MAIN_TSRREG.d.ecx; int r;
@@ -3719,6 +3750,13 @@ static void MAIN_TSR_Interrupt()
                 _LOG("Change DMA\n");
                 VDMA_Virtualize(old_opt[OPT_DMA].value, FALSE);
                 VDMA_Virtualize(MAIN_Options[OPT_DMA].value, TRUE);
+            }
+            if(OPT_CHANGED(OPT_SPDIF) || OPT_CHANGED(OPT_SPDIFINV))
+            {   /* beta.124: Audigy S/PDIF switched on the running card */
+                char t[200];
+                SBLIVE_SpdifInv = MAIN_Options[OPT_SPDIFINV].value ? 1 : 0;
+                if(OPT_CHANGED(OPT_SPDIFINV) && !OPT_CHANGED(OPT_SPDIF)) { int m = SBLIVE_SpdifMode; SBLIVE_SpdifMode = 3; SBLIVE_SpdifSet(m, t, sizeof t); }
+                else SBLIVE_SpdifSet(MAIN_SpdifOpt(), t, sizeof t);
             }
             if((OPT_CHANGED(OPT_JOYMODE) || OPT_CHANGED(OPT_JOYDZ)) && MAIN_Options[OPT_JOY].value
                 && old_opt[OPT_JOYMODE].value != 4 && MAIN_Options[OPT_JOYMODE].value != 4)

@@ -1,3 +1,22 @@
+## wip/spdif-audigy-2026-11-14 (DOS session, split off the beta.124 key chat): Audigy S/PDIF out - code done, untested on hardware
+- User: check sc_sbliv.c S/PDIF for every Audigy (1 EMU10K2, 2 / 2 ZS / 2 Value / 4): enabled, DSP main mix to the S/PDIF FX outputs,
+  44.1/48 kHz right; /SPDIF:0|1|ONLY (default 1 = analog + S/PDIF) shown in SBDIAG; S/PDIF shares the rear 3.5 mm Digital Out /
+  Center-Sub jack (tip = coax via TRS-to-RCA): /SPDIF:1 must switch that jack to digital (Creative "Digital Output Only").
+- Done: sc_sbliv.c SBLIVE_SpdifMode/Inv, snd_emu_spdif_jack (A_IOCFG GPOUT0 0x44 + HCFG GPOUT0 as ALSA; ALSA invert_shared_spdif =
+  CA0151 cards except SB0380; CA0108 Value/A4: P16V reg 7Ah), DSP routing per mode (digital FRONT/REAR = S/PDIF, AFRONT/AREAR/
+  HEADPHONE = analog), S/PDIF always 48 kHz + SPCS0-2 rate bits (before: A2 SRC 44.1 vs SPCS 48 mismatch; A1 got reg 76h it lacks),
+  SBLIVE_SpdifSet live switch (cli, fx_init re-run, GPR 8/9 volume kept). main.c /SPDIF (STR), /SPDIFINV, AMIS 08h (ECX mode or
+  query, EDX size), re-run switch, SBEMULOG "S/PDIF:" line. sbemuchk.h sbemu_text(); SBDIAG SPDIF [0|1|ONLY], SBDIAG TONE [s] (OPL3
+  1 kHz left/right/both). Builds (DJGPP v3.4).
+- Not done: no Audigy in QEMU/86Box, so only "CARD=none" path testable; 86Box speed (only init-time code + DSP microcode, no runtime
+  cost expected); release; README/README.TXT/HWTEST text; MENU item.
+- Merge note: sbemuchk.h sbemu_text() is also in the beta.124 keys work (same code) - keep one copy when merging.
+- Next 3 steps: 1) rebase on main after beta.124 (keys) lands, resolve main.c/sbdiag.c/sbemuchk.h; 2) QEMU smoke (SBDIAG SPDIF says
+  CARD=none, /SPDIF parses), README.TXT + HWTEST item, release beta.NN; 3) P5PE-VM: SBDIAG SPDIF (card name, jack), TONE with
+  /SPDIF:ONLY on the coax receiver (tip of the Digital Out / Center-Sub jack -> TRS-to-RCA tip/white... check which RCA), /SPDIFINV:1
+  if no lock.
+- Resume: git fetch origin wip/spdif-audigy-2026-11-14 --depth 5; export PATH=/tmp/dl/djgpp/djgpp/bin:$PATH; cd sc55-pack; make -j16.
+
 ## beta.123 (2026-11-14, DOS session): switch MIDI output (emulated synth <-> USB MIDI devices) without a restart
 - User: "start SC55 with emulation, pick USB MIDI in MENU/SETTINGS, run SC55 again - shouldn't it just change?" (it did
   not: a re-run only copied options; /MUSB also skipped loading the synth). Asked: synth <-> USB and between USB
