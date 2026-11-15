@@ -276,6 +276,83 @@ static int soak_cmd(int argc, char** argv)
     return fail ? 1 : 0;
 }
 
+/* ---------------------------------------------------------------- beta.126: Audigy S/PDIF, test tone */
+static void spdif_show(const char* t)
+{
+    char v[64];
+    if (!strncmp(t, "SPDIF=", 6) && strstr(t, "CARD=none")) { printf("S/PDIF: %s\n", strchr(t, ' ') + 1); return; }
+    sbc_field(t, "MODE=", v, sizeof v);
+    printf("S/PDIF mode %c = ", t[6]);
+    { const char* m = strstr(t, "MODE="); const char* e = m ? strstr(m, " CARD=") : NULL; if (m && e) printf("%.*s\n", (int)(e - m - 5), m + 5); }
+    { const char* c = strstr(t, "CARD="); const char* e = c ? strstr(c, " SSID=") : NULL; if (c && e) printf("  card: %.*s", (int)(e - c - 5), c + 5); }
+    sbc_field(t, "SSID=", v, sizeof v); printf(" (subsystem %s", v);
+    sbc_field(t, "REV=", v, sizeof v); printf(", rev %s)\n", v);
+    sbc_field(t, "JACK=", v, sizeof v);
+    if (!strncmp(v, "own-", 4)) printf("  S/PDIF out: its own jack, %s\n", strstr(v, "on") ? "on" : "off");
+    else printf("  rear Digital Out / Center-Sub jack: %s%s\n", strncmp(v, "digital", 7) ? "ANALOG (center / subwoofer)" : "DIGITAL (coax S/PDIF on the tip)",
+                strstr(v, "(inv)") ? " [Audigy 2 polarity]" : "");
+    sbc_field(t, "RATE=", v, sizeof v); printf("  S/PDIF rate: %s Hz (channel status says the same)\n", v);
+    printf("  raw: %s\n", strstr(t, "IOCFG=") ? strstr(t, "IOCFG=") : t);
+}
+
+static int spdif_cmd(int argc, char** argv)
+{
+    char t[256]; unsigned long m = 0xFF;
+    if (argc > 2)
+    {
+        if (!stricmp(argv[2], "ONLY") || !strcmp(argv[2], "2")) m = 2;
+        else if (!strcmp(argv[2], "0") || !stricmp(argv[2], "OFF")) m = 0;
+        else if (!strcmp(argv[2], "1") || !stricmp(argv[2], "ON")) m = 1;
+        else { printf("SBDIAG SPDIF [0|1|ONLY]\n"); return 2; }
+    }
+    if (!sbemu_text(0x08, m, t, sizeof t)) { printf("S/PDIF: SBEMU beta.124+ is not loaded (run SC55 first).\n"); return 1; }
+    spdif_show(t);
+    if (g_log) fprintf(g_log, "%s\n", t);
+    return strstr(t, "CARD=none") ? 1 : 0;
+}
+
+/* OPL3 sine tone through SBEMU (so through the card's mix and its S/PDIF): left, right, both */
+static void opl(int bank, int reg, int val)
+{
+    int p = 0x388 + bank * 2, i;
+    outportb(p, (unsigned char)reg); for (i = 0; i < 6; ++i) (void)inportb(p);
+    outportb(p + 1, (unsigned char)val); for (i = 0; i < 35; ++i) (void)inportb(p);
+}
+static void opl_note(int lr, int on)
+{
+    const int fnum = 659, block = 5;                           /* 1000 Hz: fnum * 49716 / 2^(20-block) */
+    opl(0, 0xC0, (lr << 4) | 0x00);
+    opl(0, 0xA0, fnum & 0xFF);
+    opl(0, 0xB0, (on ? 0x20 : 0) | (block << 2) | (fnum >> 8));
+}
+static int tone_cmd(int argc, char** argv)
+{
+    int secs = argc > 2 ? atoi(argv[2]) : 3, r, i;
+    static const char* const nm[3] = { "LEFT", "RIGHT", "BOTH" };
+    static const int lr[3] = { 1, 2, 3 };
+    char t[256];
+    if (secs < 1) secs = 1; if (secs > 60) secs = 60;
+    if (sbemu_text(0x08, 0xFF, t, sizeof t)) spdif_show(t);
+    else printf("(SBEMU beta.124+ not found: the tone needs SBEMU's OPL3 emulation, /OPL:1)\n");
+    for (i = 0; i < 0xF6; ++i) { opl(0, i, 0); opl(1, i, 0); }
+    opl(1, 0x05, 1);                                           /* OPL3 mode: left / right bits */
+    opl(0, 0x20, 0x21); opl(0, 0x23, 0x21);                    /* sustained, multiple 1 */
+    opl(0, 0x40, 0x3F); opl(0, 0x43, 0x04);                    /* modulator silent, carrier loud: a pure sine */
+    opl(0, 0x60, 0xF0); opl(0, 0x63, 0xF0);
+    opl(0, 0x80, 0x0F); opl(0, 0x83, 0x0F);
+    opl(0, 0xE0, 0); opl(0, 0xE3, 0);
+    for (r = 0; r < 3; ++r)
+    {
+        printf("1 kHz tone %-5s %d s ...\n", nm[r], secs); fflush(stdout);
+        opl_note(lr[r], 1); delay(secs * 1000); opl_note(lr[r], 0); delay(400);
+    }
+    for (i = 0; i < 0xF6; ++i) { opl(0, i, 0); opl(1, i, 0); }
+    opl(1, 0x05, 0);
+    printf("Done. Heard LEFT, RIGHT, BOTH in that order?\n");
+    return 0;
+}
+
+
 int main(int argc, char** argv)
 {
     unsigned long d[F_COUNT];
@@ -303,13 +380,17 @@ int main(int argc, char** argv)
                "SBDIAG MIDICAP [file]  what SBEMU /MIDICAP:1 recorded (game MPU bytes + USB MIDI packets)\n"
                "SBDIAG WC      video write-combining (SBEMU /VWC): on, off or unavailable and why\n"
                "SBDIAG KEYS [CLEAR]  every key SBEMU typed (USB keyboard, pads, repeats) and why\n"
-               "SBDIAG SOAK [min]  idle test (default 30 min): nothing touched must type no key (KEYSOAK.TXT)\n");
+               "SBDIAG SOAK [min]  idle test (default 30 min): nothing touched must type no key (KEYSOAK.TXT)\n"
+               "SBDIAG SPDIF [0|1|ONLY]  Audigy S/PDIF: show / switch (0 analog, 1 analog + S/PDIF, ONLY S/PDIF)\n"
+               "SBDIAG TONE [s]  1 kHz test tone left, right, both (OPL3 through SBEMU and the card)\n");
         return 0;
     }
     if (!stricmp(cmd, "MIDICAP")) return midicap(argc > 2 ? argv[2] : NULL);
     if (!stricmp(cmd, "WC")) { char w[300]; int st = VESAWC_Status(w, sizeof w); printf("Video write-combining (SBEMU /VWC): %s\n", w); return st > 0 ? 0 : st == 0 ? 1 : 2; }
     if (!stricmp(cmd, "KEYS")) return keys_cmd(argc, argv);
     if (!stricmp(cmd, "SOAK")) return soak_cmd(argc, argv);
+    if (!stricmp(cmd, "SPDIF")) return spdif_cmd(argc, argv);
+    if (!stricmp(cmd, "TONE")) return tone_cmd(argc, argv);
     g_muon = sbemu_musb(&g_mu) && g_mu.out > 0;
     if (!stricmp(cmd, "USB"))
     {
