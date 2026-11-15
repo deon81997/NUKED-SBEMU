@@ -45,6 +45,7 @@ static __attribute__((unused)) void sleep_ms(int ms) { g_now_us += (uint64_t)ms 
 #include <dir.h>
 #include "tui.h"
 #include "mpuport.h"
+#include "dbg.h"
 
 static int base = 0x330;
 static int g_mpuport, p_arg;                /* Options: MPU-401 port chosen (0 = auto: saved /P, BLASTER P=, then a search) */
@@ -1344,6 +1345,7 @@ static void ui_log(const char* fmt, ...)
     k = snprintf(d, 12, "%7.1f ", (double)(now_us() / 100000ULL) / 10.0);
     if (k < 0 || k > 11) k = 0;
     vsnprintf(d + k, sizeof g_ulog[0] - (size_t)k, fmt, ap); va_end(ap);
+    if (g_dbg_level) dbg_log("%s", d + k);         /* beta.127: /DBG serial link */
 }
 
 /* every MIDI file in dir, sorted; returns how many were added */
@@ -2670,6 +2672,7 @@ int main(int argc, char** argv)
         snprintf(g_shf, sizeof g_shf, "%s\\MIDPLAY.SHF", g_home);
     }
     cfg_load();
+    if (dbg_tool_init(&argc, argv, "MIDPLAY")) dbg_log("started, %d arguments", argc - 1);   /* beta.127 */
     srand((unsigned)time(NULL)); g_rng ^= (uint32_t)time(NULL) * 2654435761u; if (!g_rng) g_rng = 1;
     for (i = 1; i < argc; i++)
     {
