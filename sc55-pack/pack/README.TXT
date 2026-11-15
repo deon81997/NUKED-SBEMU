@@ -224,6 +224,18 @@ CONTENTS
       refused under EMM386/QEMM and Windows, and left alone when the BIOS
       already covers the frame buffer with its own MTRR. SBDETAIL.TXT has
       a "[wc]" line for each change.
+      FAST VIDEO IN GAMES (SBEMU /VWC:1, since beta.124): SC55 /VWC:1 (or
+      SC55JEM /VWC:1) turns write-combining on for the VESA frame buffer
+      for as long as SBEMU is loaded, so games in VESA modes (640x480 and
+      up) spend less CPU time drawing and leave more for the SC-55. Off
+      by default. Only the frame buffer above 1 MB is changed, never the
+      VGA window at A0000-BFFFF, so 320x200 and Mode X games are not
+      affected. Works with HIMEM only (SC55) and with JEMM (SC55JEM); with
+      EMM386, QEMM or in Windows SBEMU says why it cannot and loads as
+      usual. SBEMU /VWC:0 takes it away again (or reboot). SBDIAG WC shows
+      on / off / unavailable and why; the SBDIAG report has the same
+      line. If a game shows broken pictures with it, start SC55 without
+      /VWC:1 and send SBDETAIL.TXT ("Video write-combining" lines).
       IF MENU CRASHES: the text screen comes back and MENU writes CRASH.TXT
       in C:\SC55 (the error, the CPU registers, 3D mode/style/look/colours,
       the chosen item, free memory and the last 50 keys/actions). Please
@@ -623,6 +635,11 @@ CONTENTS
                            0 off, 100 unity, 1-400 (section 10)
      /CARDWD:0|1|2         sound card interrupt watchdog: 0 off, 1 on,
                            2 auto (default: on only for the ES1371)
+
+  Video
+     /VWC:0|1              write-combining for the VESA frame buffer while
+                           SBEMU is loaded (default 0 = off; FAST VIDEO IN
+                           GAMES under section 3D MENU)
 
   Joystick (section 10b)
      /JOY:0|1              USB Xbox 360 pad as the gameport joystick at port

@@ -1,3 +1,31 @@
+## beta.124 (2026-11-14, DOS session): SBEMU /VWC:1 - write-combining for the VESA frame buffer while SBEMU is loaded
+- Built on branch feature/vesa-wc (merged; a parallel session works on EMU10K hardware offload - none of its files
+  touched). New files only: sc55-pack/vesawc.c/.h; main.c hooks: /VWC option (table + enum) and one VESAWC_Init call
+  before the resident check (no cleanup hook needed: atexit undoes WC when SBEMU quits without going resident; a
+  resident SBEMU never runs this code). SBDIAG: `SBDIAG WC` (exit 0 on, 1 off, 2 unavailable) + a report line.
+- Reuses tools/wcset.h (DPMI 0301h real-mode stub: real mode under HDPMI raw, V86 under JEMM) + the 3dfx OVL's
+  "MTRRs:" dump (deon81997/3dfx-dos-emulator- vcore vesa.c ran at ring 0 under DOS/4GW - SBEMU is ring 3, CPL 3
+  confirmed, so its direct RDMSR path cannot be used; its MMX present does not apply: games draw, not SBEMU).
+- LFB: VBE 4F03 current mode, else first LFB mode (4F01 PhysBasePtr) + VBE total memory; PCI class 03 BAR lookup is
+  read-only then (BAR sized only in the PCI fallback when VBE gives nothing). Range < 1 MB refused (A0000-BFFFF and
+  fixed MTRRs never touched). Re-run: SBEMU /VWC:1 sets, /VWC:0 clears SBEMU's MTRR (same range as WCSET ON).
+- Ring 0 per memory manager (testrig/vesawc/run.sh ZIP pm rm emm): no EMM (SC55) real mode -> WC set; JEMMEX
+  (SC55JEM) V86 -> WC set; EMM386 NOEMS -> refused before any MSR access (only SMSW runs), message, SBEMU loads;
+  QEMM: not available here, same branch as EMM386 (V86 and not JEMM; QEMM named via INT 2Fh D200h / QEMM386$);
+  Windows DOS box refused (wc_probe). 86Box P3B-F PII-450 + Voodoo3 + ES1371 (testrig/vesawc/86box): pm/rm/emm PASS
+  (MTRR 1 = WC DE000000 16 MB, cleared by /VWC:0, set again by re-run, failed start /PADLOG -> restored); QEMU
+  pm/rm/emm PASS (SeaBIOS UC MTRR 80000000-FFFFFFFF -> "unavailable", correct). menustat 5/5 on the zip.
+- Speed (testrig/vesawc/perf.sh ZIP, 86Box PII-450, SoundFont TimGM6mb, MIDPLAY 40 s busy song): beta.123 / new off /
+  new /VWC:1 = 344 int/s, avg 1.77 ms, longest 4.85/4.83/4.64 ms, 61% CPU, render 236/236/235%. SC55LOG.EXE md5
+  47e60dc3.. identical. 86Box does not model WC speed: the gain can only be seen on real PCs.
+- Zip = beta.123 zip + rezip.py (all EXEs beta.124, README.TXT, HWTEST.TXT; rezip.py now swaps HWTEST.TXT too).
+- Hardware ask (HWTEST beta.124 item): D810 + P5PE-VM, SBDIAG WC line, VESA games timed with and without /VWC:1,
+  VGA/Mode X games look unchanged, once with SC55JEM.
+- Open: if the D810 BIOS covers the LFB with a UC MTRR, WC is "unavailable" -> PAT idea (as in WCSET's open item).
+- Next 3 steps: 1) D810/P5PE-VM results; 2) if "unavailable" on real boards: PAT (PIII+) through the same stub;
+  3) SETTINGS item for /VWC (now command line / SBOPTS only).
+- Test downloads: DJGPP v3.4 (/tmp/dl/djgpp), TimGM6mb (apt-get download, /tmp/dl/timgm6mb).
+
 ## beta.123 (2026-11-14, DOS session): switch MIDI output (emulated synth <-> USB MIDI devices) without a restart
 - User: "start SC55 with emulation, pick USB MIDI in MENU/SETTINGS, run SC55 again - shouldn't it just change?" (it did
   not: a re-run only copied options; /MUSB also skipped loading the synth). Asked: synth <-> USB and between USB

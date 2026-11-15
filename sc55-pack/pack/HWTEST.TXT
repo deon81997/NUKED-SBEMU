@@ -1,6 +1,15 @@
-NUKED SB-EMU - REAL HARDWARE CHECKLIST (beta.123)
+NUKED SB-EMU - REAL HARDWARE CHECKLIST (beta.124)
 Things an emulator cannot confirm. Tick each one; for any failure keep
 C:\SC55\BUGREP.TXT (MENU > Tests > Bug report) and CRASH.TXT if there is one.
+
+[ ] beta.124 SBEMU /VWC:1 (video write-combining in games), D810 and P5PE-VM:
+    SC55 /VWC:1, then SBDIAG WC (send the line). Time 2-3 VESA games (e.g.
+    Duke 3D 640x480, Blood or Shadow Warrior in a VESA mode, Quake vid_mode
+    640x480) with SBDIAG START ... SBDIAG, first after SC55 (no /VWC), then
+    after SBEMU /VWC:1; note fps (Quake timedemo demo1) and the SBDIAG
+    "uses ..% of the CPU" line. 1-2 VGA / Mode X games (Doom, Heretic,
+    Jazz Jackrabbit) with /VWC:1: pictures must look the same as without.
+    Also once with SC55JEM /VWC:1. Send SBDIAG.TXT for each run.
 
 [ ] beta.123 switch without restart: SC55 (emulated SC-55), MENU > Sound >
     "MIDI to: USB 1 ..." -> the SC-55 module plays; "MIDI to: SC-55" -> back.
