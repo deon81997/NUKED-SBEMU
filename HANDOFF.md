@@ -1,4 +1,13 @@
-## wip/spdif-audigy-2026-11-14 (DOS session, split off the beta.124 key chat): Audigy S/PDIF out - code done, untested on hardware
+## wip/spdif-audigy-2026-11-14 (DOS session, split off the beta.124 key chat): Audigy S/PDIF out - code + docs done, waiting for beta.124 (keys) to land
+- 2nd session (11/14 evening): bad /SPDIF values refused (main.c, before the re-run path); README.TXT section 7 /SPDIF + /SPDIFINV and
+  section 15 "AUDIGY DIGITAL OUT" (jack TIP = WHITE/left RCA -> receiver COAXIAL in); HWTEST beta.124 P5PE-VM item; testrig/spdif/run.sh
+  ZIP EXE.. (QEMU: start, re-run /SPDIF:ONLY, SBDIAG SPDIF 0, bad value refused) PASS. Speed: only init/option/AMIS code + EMU DSP
+  microcode, the non-Audigy runtime path is unchanged (no 86Box Audigy to measure). Release not done: main was still beta.123.
+- Risk to check on hardware: CA0151 (Audigy 2/ZS) - switching the jack clears A_IOCFG 0x44 incl. 0x40 ("unmute analog" in init), as
+  ALSA does; HWTEST asks whether front speakers stay on with /SPDIF:1. If not: keep 0x40, toggle only 0x04 on CA0151.
+- Next 3 steps: 1) when main has beta.124 (keys): rebase --onto origin/main 295d762, keep ONE sbemuchk.h sbemu_text(), resolve main.c/
+  sbdiag.c, make, testrig/spdif + menustat PASS; 2) release beta.125: makefile VERSION, README What's NEW (5 shown), rezip, tag; HWTEST
+  title/item "beta.124" -> the real number; 3) P5PE-VM HWTEST item results.
 - User: check sc_sbliv.c S/PDIF for every Audigy (1 EMU10K2, 2 / 2 ZS / 2 Value / 4): enabled, DSP main mix to the S/PDIF FX outputs,
   44.1/48 kHz right; /SPDIF:0|1|ONLY (default 1 = analog + S/PDIF) shown in SBDIAG; S/PDIF shares the rear 3.5 mm Digital Out /
   Center-Sub jack (tip = coax via TRS-to-RCA): /SPDIF:1 must switch that jack to digital (Creative "Digital Output Only").
