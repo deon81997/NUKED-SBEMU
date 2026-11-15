@@ -149,6 +149,21 @@ static __attribute__((unused)) int sbemu_musb(SBMUSB* m)
     }
     return 1;
 }
+/* beta.125: AMIS functions that answer one text line into EBX with EDX = buffer size, ECX = argument
+ * (08h Audigy S/PDIF, 09h keys SBEMU typed). 1 = got it, 0 = SBEMU not loaded or too old */
+static __attribute__((unused)) int sbemu_text(int fn, unsigned long ecx, char* out, int size)
+{
+    char t[8]; int id = sbc_amis(t, 2); __dpmi_regs r;
+    out[0] = 0;
+    if (id <= 0) return 0;
+    if (size > 8000) size = 8000;
+    memset(&r, 0, sizeof r); r.h.ah = (unsigned char)id; r.h.al = (unsigned char)fn;
+    r.d.ebx = __tb; r.d.ecx = ecx; r.d.edx = (unsigned long)size;
+    { char z = 0; dosmemput(&z, 1, __tb); }
+    if (__dpmi_int(0x2D, &r) != 0 || r.h.al != 0 || (r.x.flags & 1)) return 0;
+    dosmemget(__tb, size, out); out[size - 1] = 0;
+    return 1;
+}
 /* switch the loaded SBEMU's MIDI output (AMIS 07h): to = 0 emulated synth, 1.. USB slot, 0x80 USB, 0xFE next.
  * Returns the output now (0 / 1..), or -1 no emulated synth, -2 no USB MIDI, -3 SBEMU too old / not loaded */
 static __attribute__((unused)) int sbemu_setout(int to)

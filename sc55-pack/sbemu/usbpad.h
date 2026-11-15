@@ -82,6 +82,7 @@ int  USBPAD_Init(uint64_t cps, int wait_ms, int flags, const char** msg);
  * NULL / "" = the USBSKIP environment variable (the tools). Set before USBPAD_Init; the string must stay. */
 void USBPAD_SetSkip(const char* list);
 void USBPAD_SetHid(USBPAD_KbdFn kb, USBPAD_MouseFn ms);
+uint32_t USBPAD_InErrors(void);            /* beta.125: interrupt IN reports lost so far (their keys / buttons were let go) */
 void USBPAD_SetLeds(int leds);     /* keyboard LEDs: bit 0 num, 1 caps, 2 scroll (sent on the next full poll) */
 void USBPAD_Poll(void);
 void USBPAD_PollLight(void);       /* only collects reports: safe inside a game's port read */

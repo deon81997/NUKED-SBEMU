@@ -211,6 +211,71 @@ static void show(const char* argv0, const SUM* m)
     tu_end();
 }
 
+
+/* ---------------------------------------------------------------- beta.125: keys SBEMU typed */
+static void keys_print(const char* t, FILE* f)
+{
+    const char* q;
+    for (q = t; *q; ++q) { if (*q == '|') fputs("\n  ", f); else fputc(*q, f); }
+    fputc('\n', f);
+}
+static int keys_cmd(int argc, char** argv)
+{
+    static char t[64 * 48 + 400];
+    int clr = argc > 2 && !stricmp(argv[2], "CLEAR");
+    if (!sbemu_text(0x09, clr ? 3 : 2, t, sizeof t)) { printf("Keys: SBEMU beta.125+ is not loaded.\n"); return 1; }
+    printf("Keys SBEMU typed (USB keyboard / pads / repeats; a real PS/2 keyboard is not counted):\n  ");
+    keys_print(t, stdout);
+    if (g_log) { fputs("  ", g_log); keys_print(t, g_log); }
+    return 0;
+}
+
+/* idle soak: nothing is touched for N minutes (default 30): SBEMU must type no key, the BIOS must get none */
+static int soak_cmd(int argc, char** argv)
+{
+    static char t[64 * 48 + 400];
+    int mins = argc > 2 ? atoi(argv[2]) : 30, s, bios = 0, fail, esc = 0;
+    unsigned long keys = 0, bytes = 0, err0 = 0, err = 0, mis = 0, mpk = 0;
+    FILE* f;
+    if (mins < 1) mins = 1;
+    int old = !sbemu_text(0x09, 3, t, sizeof t);
+    if (old) printf("SOAK: SBEMU beta.125+ not loaded: only keys that reach the BIOS are counted.\n");
+    err0 = old ? 0 : sbc_num(t, "USBERR=");
+    while (kbhit()) { getkey(); }                             /* what was typed before the start */
+    printf("Idle soak %d min: do not touch the pads, keyboards or mice. Esc (on any keyboard) stops.\n", mins);
+    for (s = 0; s < mins * 60; ++s)
+    {
+        int i;
+        for (i = 0; i < 10; ++i)
+        {
+            delay(100);
+            while (kbhit()) { int k = getkey(); ++bios; if (k == 27) { esc = 1; s = mins * 60; break; } }
+        }
+        if (old || !sbemu_text(0x09, 0, t, sizeof t)) t[0] = 0;
+        if (t[0]) keys = sbc_num(t, "KEYS="); bytes = sbc_num(t, "BYTES="); mis = sbc_num(t, "MISROUTE="); mpk = sbc_num(t, "MOUSEPK=");
+        if (t[0]) err = sbc_num(t, "USBERR=") - err0;
+        printf("\r  %02d:%02d  keys typed by SBEMU %lu (bytes %lu)  BIOS keys %d  mouse packets %lu  lost USB reports %lu  ",
+               s / 60, s % 60, keys, bytes, bios, mpk, err);
+        fflush(stdout);
+    }
+    printf("\n");
+    if (old || !sbemu_text(0x09, 2, t, sizeof t)) strcpy(t, "(no SBEMU key log)");
+    fail = keys || bytes || bios || mis || esc;
+    f = fopen("KEYSOAK.TXT", "w");
+    if (f)
+    {
+        fprintf(f, "SBDIAG SOAK %d min (%s)\n", mins, esc ? "stopped with Esc" : "full time");
+        fprintf(f, "keys typed by SBEMU %lu, bytes %lu, BIOS keys %d, mouse bytes as keys swallowed %lu, mouse packets %lu, lost USB reports %lu\n",
+                keys, bytes, bios, mis, mpk, err);
+        fputs("  ", f); keys_print(t, f);
+        fprintf(f, "%s\n", fail ? "FAIL" : "PASS");
+        fclose(f);
+    }
+    printf("%s: %lu keys typed by SBEMU, %d keys reached the BIOS, %lu mouse bytes caught as keys. Saved KEYSOAK.TXT\n",
+           fail ? "FAIL" : "PASS", keys, bios, mis);
+    return fail ? 1 : 0;
+}
+
 int main(int argc, char** argv)
 {
     unsigned long d[F_COUNT];
@@ -236,11 +301,15 @@ int main(int argc, char** argv)
                "SBDIAG STOP    stop measuring\n"
                "SBDIAG USB     USB MIDI (SBEMU /MUSB): device, port, state, counters, last error\n"
                "SBDIAG MIDICAP [file]  what SBEMU /MIDICAP:1 recorded (game MPU bytes + USB MIDI packets)\n"
-               "SBDIAG WC      video write-combining (SBEMU /VWC): on, off or unavailable and why\n");
+               "SBDIAG WC      video write-combining (SBEMU /VWC): on, off or unavailable and why\n"
+               "SBDIAG KEYS [CLEAR]  every key SBEMU typed (USB keyboard, pads, repeats) and why\n"
+               "SBDIAG SOAK [min]  idle test (default 30 min): nothing touched must type no key (KEYSOAK.TXT)\n");
         return 0;
     }
     if (!stricmp(cmd, "MIDICAP")) return midicap(argc > 2 ? argv[2] : NULL);
     if (!stricmp(cmd, "WC")) { char w[300]; int st = VESAWC_Status(w, sizeof w); printf("Video write-combining (SBEMU /VWC): %s\n", w); return st > 0 ? 0 : st == 0 ? 1 : 2; }
+    if (!stricmp(cmd, "KEYS")) return keys_cmd(argc, argv);
+    if (!stricmp(cmd, "SOAK")) return soak_cmd(argc, argv);
     g_muon = sbemu_musb(&g_mu) && g_mu.out > 0;
     if (!stricmp(cmd, "USB"))
     {

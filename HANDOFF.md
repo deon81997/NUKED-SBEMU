@@ -1,3 +1,31 @@
+## beta.125 (2026-11-14, DOS session): no random key presses in games (pads, USB keyboard, mouse -> KBC)
+- User: audit every place the pack injects keys / mouse bytes; generous dead zone + hysteresis, release-all on USB error, never
+  inject while a real keyboard byte is pending, log every injected key's source (SBTRACE), 30-min idle soak = zero keys.
+  (Audigy S/PDIF from the same prompt was split off: wip/spdif-audigy-2026-11-14, own HANDOFF section.)
+- Causes found: padmap.c stick -> key at 13000 (40%) with no hysteresis and no "seen centred" check (drift / off-centre sliders /
+  noise typed and repeated keys); triggers > 128 single threshold; no debounce; usbpad.c pipe_poll on a TD error kept the
+  keyboard's keys held (VKBC repeat forever if no next report); vkbc kpush dropped single bytes when full (lost break = stuck
+  key, lost E0 = wrong key); 50 ms "unstuck" re-read could take a reply a program asked for; mouse D3h byte seen as keyboard
+  data (AUXB clear) would be a keystroke; our bytes could land between a real key's E0 and its code.
+- Fix: padmap.c threshold 16000 at /JOYDZ 10 (+328/pct), off below 3/4, armed after |v| < thr/2, two polls past threshold;
+  vjoy.c key_filter (buttons: 2 equal polls; triggers on > 160 off < 96) for key decisions only (game port raw); usbpad.c IN
+  error -> KbFn(k, none) + prev cleared, pad buttons/axes 0, mouse buttons up, TRACE_Event, USBPAD_InErrors; vkbc.c kpushn
+  (whole key or nothing, 16 places kept for breaks), source-tagged ring (KS_*: USB keyboard #id, USB repeat, pad layout, pad
+  repeat, /JOYKEY, unread byte again) + totals, misrouted D3h byte read back (3 x -> no mouse via KBC), RealHold 30 ms after
+  a real E0/E1 read through the trap, unstuck only 200 ms after a program's last KBC write, VKBC_ReleaseAll on SBEMU re-run.
+  trace.c "Injected keys" part (TRACE_SetKeyLog / TRACE_Dirty). main.c AMIS 09h (ECX bit0 clear, bit1 byte log; EDX size).
+  sbemuchk.h sbemu_text(); SBDIAG KEYS [CLEAR], SBDIAG SOAK [min] (KEYSOAK.TXT, also counts BIOS keys; works with old SBEMU).
+  README.TXT, HWTEST.TXT (+ rezip.py now swaps HWTEST.TXT: zips since beta.121 had the beta.120 checklist), README news.
+- Tests (testrig/keysoak/run.sh MIN [EXE_DIR], JEMM=1): QEMU dos71 HIMEM + HDPMI32I, OHCI usb-kbd + usb-mouse + fakepad idle.txt
+  (noise, drift 43%, trigger chatter at 128, Start blip, 1-report spike) + PADUSER.TXT sticks/triggers on keys:
+  beta.123 3 min = 394 keys at the BIOS (FAIL); this build 3 min = 0 (PASS), typed control key logged "USB keyboard #0 1E/9E";
+  JEMM=1 2 min PASS; 30 min PASS (0 keys, 0 BIOS keys). menustat 5/5 PASS on the zip.
+  Rig rule: never two run.sh rigs at once (shared /tmp/testrig-run-latest: the control key went to the other VM).
+- Not done: 86Box PII-450 speed run skipped: per sound IRQ only key_filter (2 pads, ~40 instructions) + padmap compares; logging
+  only when a key is typed; 86Box has no USB pass-through. Real hardware.
+- Hardware ask: HWTEST beta.124 item (SBDIAG SOAK 30, a pad game 10 min + SBDIAG KEYS, unplug a keyboard with a key held).
+- Next 3 steps: 1) user's KEYSOAK.TXT / KEYS1.TXT from P5PE-VM + D810; 2) if a source still types: its KS_ tag in KEYS1.TXT says
+  which path; 3) S/PDIF branch rebase + release (separate chat).
 ## beta.124 (2026-11-14, DOS session): SBEMU /VWC:1 - write-combining for the VESA frame buffer while SBEMU is loaded
 - Built on branch feature/vesa-wc (merged; a parallel session works on EMU10K hardware offload - none of its files
   touched). New files only: sc55-pack/vesawc.c/.h; main.c hooks: /VWC option (table + enum) and one VESAWC_Init call

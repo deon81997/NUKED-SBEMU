@@ -1138,6 +1138,20 @@ CONTENTS
        stick bound to keys presses them further out when Settings > Dead
        zone (/JOYDZ) is bigger. A key held on a USB keyboard and on the pad
        at once is let go only when both let go.
+     Since beta.125: no random key presses. A stick types its keys only
+       past half its travel and lets go below about a third (no chatter
+       around one point), only after it was seen centred once (a drifting
+       stick or a slider resting at one end types nothing), and only when
+       two polls in a row agree (one bad report is no key). Buttons count
+       after two polls agree; triggers press past 160, let go below 96.
+       A lost USB report lets go of every key that keyboard held, so no
+       key repeats on by itself. A mouse byte the keyboard controller
+       would hand over as a key is taken back.
+     Which keys SBEMU typed, and why: SBDIAG KEYS (USB keyboard, pad
+       layout, /JOYKEY, repeats; with time), also in SBTRACE.TXT.
+       SBDIAG SOAK 30 = idle test: touch nothing for 30 minutes with the
+       pads, keyboards and mice plugged in; it must say PASS (0 keys).
+       Result in KEYSOAK.TXT.
 
   Works with: the wired Microsoft Xbox 360 pad and wired pads that use the
   same protocol (Hori, Mad Catz, Logitech ChillStream, Saitek ... the

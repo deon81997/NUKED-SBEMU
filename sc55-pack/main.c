@@ -2597,6 +2597,7 @@ int main(int argc, char* argv[])
         const char* tp = getenv("SBEMUTRACE");
         if(tp && *tp) { if(!stricmp(tp, "OFF")) MAIN_TracePath[0] = 0; else if(strlen(tp) < sizeof(MAIN_TracePath)) strcpy(MAIN_TracePath, tp); }
         MAIN_Step("flight recorder (SBTRACE)");
+        TRACE_SetKeyLog(&VKBC_KeyLog);   /* beta.125: SBTRACE.TXT lists every key SBEMU typed and why */
         if(MAIN_TracePath[0] && TRACE_Init(MAIN_TracePath))
         {
             if(!MAIN_Int28On) MAIN_Int28On = DPMI_InstallRealModeISR(0x28, MAIN_Int28, &MAIN_Int28REG, &MAIN_Int28Handle, FALSE) == 0;
@@ -3571,6 +3572,22 @@ static void MAIN_TSR_Interrupt()
             MAIN_TSRREG.w.flags &= ~CPU_CFLAG;
         }
         return;
+        case 0x09: //beta.125: keys SBEMU typed (vkbc.c log): ECX bit 0 = clear first, bit 1 = with the byte log; text into EBX (EDX = size)
+        {
+            static char t[64 * 48 + 300];
+            int n;
+            if(MAIN_TSRREG.d.ecx & 1) VKBC_KeyClear();
+            n = VKBC_KeyLog(t, sizeof t, (MAIN_TSRREG.d.ecx & 2) ? 1 : 0);
+            n += snprintf(t + n, sizeof t - n, n < (int)sizeof t - 40 ? " USBERR=%lu" : "", (unsigned long)(MAIN_JOY_On ? USBPAD_InErrors() : 0));
+            if(n > (int)sizeof t - 1) n = sizeof t - 1;
+            if(MAIN_TSRREG.d.edx < (uint32_t)n + 1) n = MAIN_TSRREG.d.edx ? (int)MAIN_TSRREG.d.edx - 1 : 0;
+            t[n] = 0;
+            if(MAIN_TSRREG.d.edx) DPMI_LMemcpy(MAIN_TSRREG.d.ebx, DPMI_PTR2L(t), n + 1);
+            MAIN_TSRREG.d.ecx = n;
+            MAIN_TSRREG.h.al = 0;
+            MAIN_TSRREG.w.flags &= ~CPU_CFLAG;
+        }
+        return;
         case 0x07: //beta.123: MIDI output switch: ECX 0 = emulated synth, 1.. = USB slot, 0x80 = USB (slot in use), 0xFE = next
         {   //AL = 0 done, CF + ECX 1 = no emulated synth, 2 = no USB MIDI; ECX out = the output now (0 / 1..)
             uint32_t to = MAIN_TSRREG.d.ecx; int r;
@@ -3724,6 +3741,7 @@ static void MAIN_TSR_Interrupt()
                 VDMA_Virtualize(old_opt[OPT_DMA].value, FALSE);
                 VDMA_Virtualize(MAIN_Options[OPT_DMA].value, TRUE);
             }
+            if(MAIN_JOY_On) { CLIS(); VKBC_ReleaseAll(); STIL(); }   /* beta.125: nothing typed stays held across a re-run */
             if((OPT_CHANGED(OPT_JOYMODE) || OPT_CHANGED(OPT_JOYDZ)) && MAIN_Options[OPT_JOY].value
                 && old_opt[OPT_JOYMODE].value != 4 && MAIN_Options[OPT_JOYMODE].value != 4)
                 VJOY_SetLive(MAIN_Options[OPT_JOYDZ].value, MAIN_Options[OPT_JOYMODE].value);

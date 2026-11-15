@@ -1,6 +1,13 @@
-NUKED SB-EMU - REAL HARDWARE CHECKLIST (beta.124)
+NUKED SB-EMU - REAL HARDWARE CHECKLIST (beta.125)
 Things an emulator cannot confirm. Tick each one; for any failure keep
 C:\SC55\BUGREP.TXT (MENU > Tests > Bug report) and CRASH.TXT if there is one.
+
+[ ] beta.125 no random keys (P5PE-VM and D810): plug in the 360 pad, a USB
+    keyboard and a USB mouse, start SC55 as usual, then C:\SC55> SBDIAG SOAK 30
+    and touch nothing for 30 minutes: PASS, 0 keys (KEYSOAK.TXT). Then one game
+    you play with the pad for 10 minutes: no keys you did not press;
+    afterwards SBDIAG KEYS > C:\SC55\KEYS1.TXT. Unplug the USB keyboard while
+    holding a key: the key must not keep repeating.
 
 [ ] beta.124 SBEMU /VWC:1 (video write-combining in games), D810 and P5PE-VM:
     SC55 /VWC:1, then SBDIAG WC (send the line). Time 2-3 VESA games (e.g.

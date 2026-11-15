@@ -330,6 +330,8 @@ static uint32_t  Changes;
 static int       Flags;
 static USBPAD_KbdFn KbFn;
 static USBPAD_MouseFn MsFn;
+static uint32_t UsbErrIn;              /* beta.125: interrupt IN reports lost (keys let go) */
+uint32_t USBPAD_InErrors(void) { return UsbErrIn; }
 static volatile int LedsWant = 0;
 static int       LedsHave = -1;
 
@@ -3189,7 +3191,19 @@ static void pipe_poll(int k)
     }
     if (r < 0)
     {
+        /* beta.125: a lost report (CRC / timeout / babble / stall): nothing it held stays held - every key of this
+         * keyboard is let go, the pad's buttons and sticks read "nothing" until its next report, mouse buttons up */
+        static const uint8_t none[8];
+        if (q->type == PT_KBD) { memset(q->prev, 0, sizeof(q->prev)); if (KbFn) KbFn(k, none); }
+        else if (q->type == PT_PAD)
+        {
+            USBPAD_State* ps = &Pad[q->pad];
+            ps->buttons = 0; ps->lx = ps->ly = ps->rx = ps->ry = 0; ps->lt = ps->rt = 0;
+        }
+        else if (q->type == PT_MOUSE && MsFn) MsFn(0, 0, 0, 0);
         if (Light) return;                                              /* recovery from the interrupt */
+        ++UsbErrIn;
+        TRACE_Event(TR_USB, "%s %04X:%04X report lost (%s): its keys / buttons let go", pipe_name(q), D[q->dev].vid, D[q->dev].pid, r == -2 ? "stall" : "error");
         if (r == -2) control(q->dev, 0x02, 1, 0, (uint16_t)(0x80 | q->ep), 0); /* CLEAR_FEATURE halt */
         q->tog = 0;
         arm_in(k);
