@@ -18,7 +18,7 @@
  * Never A0000-BFFFF: only the linear frame buffer above 1 MB is ever made WC (planar VGA / Mode X read video memory
  * back through the latches; the legacy window is a fixed-range MTRR anyway, which is never touched).
  * Frame buffer: VBE 4F03 current mode or the first LFB mode (4F01 PhysBasePtr), checked against the display
- * adapter's PCI memory BAR (also the fallback when VBE gives nothing); size = VBE total memory, at most the BAR.
+ * adapter's PCI memory BAR (read only; the fallback when VBE gives nothing sizes the BAR); size = VBE total memory.
  * Lifetime: SBEMU stays resident (it cannot be unloaded), so WC stays until reboot or "SBEMU /VWC:0" (a re-run takes
  * the MTRR SBEMU set away again). If SBEMU exits without going resident, the MTRR is restored at once (atexit).
  * Cost: none at run time (nothing here runs after start-up); /VWC:0 (default) does not even run CPUID. */
@@ -76,8 +76,10 @@ static int vwc_pci_present(void)
     __dpmi_regs r; memset(&r, 0, sizeof r); r.x.ax = 0xB101; __dpmi_int(0x1A, &r);
     return !(r.x.flags & 1) && r.h.ah == 0 && r.d.edx == 0x20494350UL;   /* "PCI " */
 }
-/* the display adapter's memory BAR that holds addr (addr 0: its largest prefetchable one). base/size out; 1 found */
-static int vwc_pci_fb(unsigned long addr, unsigned long* base, unsigned long* size, int* bdf_out)
+/* the display adapter's memory BAR that holds addr (addr 0: its largest one). base/size out; 1 found.
+ * sizeit 0 (VBE already gave address + memory size): read only, the BAR nearest below addr, size 0 = not known.
+ * sizeit 1 (fallback, VBE gave nothing): the BAR is sized (its memory decode is off for those few config writes). */
+static int vwc_pci_fb(unsigned long addr, int sizeit, unsigned long* base, unsigned long* size, int* bdf_out)
 {
     int idx;
     if(!vwc_pci_present()) return 0;
@@ -94,6 +96,8 @@ static int vwc_pci_fb(unsigned long addr, unsigned long* base, unsigned long* si
             if(v == 0xFFFFFFFFUL || (v & 1)) continue;                 /* I/O BAR */
             if(((v >> 1) & 3) == 2) { b++; if(vwc_pci_rd(bdf, reg + 4)) continue; } /* 64-bit BAR above 4 GB: skip */
             if(!(v & ~0xFUL)) continue;
+            if(!sizeit)
+            { v &= ~0xFUL; if(addr && v <= addr && v > bb) { bb = v; best = b; } continue; }
             /* size it: memory decode off for the few microseconds the BAR reads back its mask (as a BIOS does) */
             cmd = vwc_pci_rd(bdf, 0x04);
             disable();
@@ -109,7 +113,7 @@ static int vwc_pci_fb(unsigned long addr, unsigned long* base, unsigned long* si
             if(addr) { if(addr >= v && addr - v < sz) { *base = v; *size = sz; *bdf_out = bdf; return 1; } continue; }
             if(sz > bs) { best = b; bb = v; bs = sz; }
         }
-        if(!addr && best >= 0) { *base = bb; *size = bs; *bdf_out = bdf; return 1; }
+        if(best >= 0 && (!sizeit || !addr)) { *base = bb; *size = sizeit ? bs : 0; *bdf_out = bdf; return 1; }
     }
     return 0;
 }
@@ -132,14 +136,14 @@ static int vwc_find(void)
     wc_find_lfb();                                                    /* VBE 2.0 total memory + first LFB mode */
     if(WC.lfb && !vwc_lfb_from) vwc_lfb_from = 2;
     vwc_bar_bdf = -1;
-    if(vwc_pci_fb(WC.lfb, &vwc_bar_base, &vwc_bar_size, &vwc_bar_bdf))
+    if(vwc_pci_fb(WC.lfb, !(WC.lfb && WC.vram), &vwc_bar_base, &vwc_bar_size, &vwc_bar_bdf))
     {
         if(!WC.lfb) { WC.lfb = vwc_bar_base; vwc_lfb_from = 3; }
-        if(!WC.vram || WC.vram > vwc_bar_size - (WC.lfb - vwc_bar_base)) WC.vram = vwc_bar_size - (WC.lfb - vwc_bar_base);
+        if(vwc_bar_size && (!WC.vram || WC.vram > vwc_bar_size - (WC.lfb - vwc_bar_base))) WC.vram = vwc_bar_size - (WC.lfb - vwc_bar_base);
     }
     if(!WC.lfb) return 0;
     if(!wc_range()) return 0;
-    if(vwc_bar_bdf >= 0)                                               /* never past the end of the BAR */
+    if(vwc_bar_bdf >= 0 && vwc_bar_size)                               /* never past the end of the BAR */
         while(WC.r_size > 0x100000 && WC.r_base + WC.r_size > (wc_u64)vwc_bar_base + vwc_bar_size) WC.r_size >>= 1;
     /* hard rule: never anything below 1 MB (A0000-BFFFF: planar VGA / Mode X latches read video memory) */
     if(WC.r_base < 0x100000ULL || WC.r_base + WC.r_size > (1ULL << WC.phys_bits)) return 0;
@@ -150,7 +154,11 @@ static void vwc_where(char* o, int n)
     snprintf(o, n, "LFB %08lX from %s, %lu MB", WC.lfb, vwc_lfb_from == 1 ? "the current VBE mode" : vwc_lfb_from == 2 ? "the VBE mode list" : "the PCI BAR",
              WC.vram >> 20);
     if(vwc_bar_bdf >= 0)
-    { int l = (int)strlen(o); snprintf(o + l, n - l, ", display %02X:%02X.%X BAR %08lX %lu MB", vwc_bar_bdf >> 8, (vwc_bar_bdf >> 3) & 31, vwc_bar_bdf & 7, vwc_bar_base, vwc_bar_size >> 20); }
+    {
+        int l = (int)strlen(o);
+        l += snprintf(o + l, n - l, ", display %02X:%02X.%X BAR %08lX", vwc_bar_bdf >> 8, (vwc_bar_bdf >> 3) & 31, vwc_bar_bdf & 7, vwc_bar_base);
+        if(vwc_bar_size) snprintf(o + l, n - l, " %lu MB", vwc_bar_size >> 20);
+    }
 }
 static void vwc_dump(char* o, int n)                                  /* the 3dfx PERFLOG "MTRRs:" line */
 {
