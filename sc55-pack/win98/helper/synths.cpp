@@ -1,6 +1,7 @@
 // synths.cpp - SC-55 (Nuked-SC55, J.C. Moyer's fork), MT-32 (Munt),
 // SoundFont (TinySoundFont) and OPL (DOSBox DBOPL / Nuked OPL3) wrappers.
 #include "synths.h"
+#include <cmath>
 #include "romscan.h"
 #include "emu.h"
 #include "lcd.h"
@@ -116,15 +117,57 @@ public:
     bool fx = true;
     std::vector<uint8_t> tmp;
 
+    // anti-alias low-pass (DOS beta.109, sc55engine.hpp): 3 biquads = 6th order Butterworth at 0.42 x the output
+    // rate on the native frames before the resampler, only when the output rate is below the SC-55's. Integer
+    // direct form I, Q28 coefficients, 24-bit samples: no float denormals as notes fade out (Pentium II x87 build).
+    struct Biquad { int32_t b0, b1, b2, a1, a2; int32_t x1[2], x2[2], y1[2], y2[2]; };
+    Biquad lpf[3] = {};
+    bool lpf_on = false;
+    int out_rate = 44100, native_rate = 32000;
+    void set_lowpass(bool want) override
+    {
+        bool on = want && out_rate < native_rate;
+        if (on == lpf_on) return;
+        if (on) {
+            static const double q[3] = { 0.51763809, 0.70710678, 1.93185165 };
+            const double fc = 0.42 * out_rate, k = std::tan(3.14159265358979 * fc / native_rate);
+            for (int i = 0; i < 3; i++) {
+                const double nn = 1.0 / (1.0 + k / q[i] + k * k), sc = 268435456.0;
+                Biquad& b = lpf[i];
+                b.b0 = (int32_t)std::floor(k * k * nn * sc + 0.5); b.b1 = 2 * b.b0; b.b2 = b.b0;
+                b.a1 = (int32_t)std::floor(2.0 * (k * k - 1.0) * nn * sc + 0.5);
+                b.a2 = (int32_t)std::floor((1.0 - k / q[i] + k * k) * nn * sc + 0.5);
+                for (int c = 0; c < 2; c++) b.x1[c] = b.x2[c] = b.y1[c] = b.y2[c] = 0;
+            }
+        }
+        lpf_on = on;
+    }
+    static int32_t biquad(Biquad& b, int c, int32_t x)
+    {
+        const int64_t acc = (int64_t)b.b0 * x + (int64_t)b.b1 * b.x1[c] + (int64_t)b.b2 * b.x2[c]
+                          - (int64_t)b.a1 * b.y1[c] - (int64_t)b.a2 * b.y2[c];
+        const int32_t y = (int32_t)((acc + (1 << 27)) >> 28);
+        b.x2[c] = b.x1[c]; b.x1[c] = x; b.y2[c] = b.y1[c]; b.y1[c] = y;
+        return y;
+    }
+
     static void on_sample(void* ud, const AudioFrame<int32_t>& f)
     {
         Sc55* s = (Sc55*)ud;
         size_t n = s->fifo.size() / 2;
         if (s->wr - s->rd >= n) return;
         size_t i = (s->wr % n) * 2;
-        const float k = 1.0f / (32768.0f * 32768.0f);
-        s->fifo[i] = (float)f.left * k;
-        s->fifo[i + 1] = (float)f.right * k;
+        if (s->lpf_on) {
+            int32_t l = f.left >> 8, r = f.right >> 8;      // full scale 2^30 -> 2^22
+            for (int k = 0; k < 3; k++) { l = biquad(s->lpf[k], 0, l); r = biquad(s->lpf[k], 1, r); }
+            const float k24 = 1.0f / 4194304.0f;
+            s->fifo[i] = (float)l * k24;
+            s->fifo[i + 1] = (float)r * k24;
+        } else {
+            const float k = 1.0f / (32768.0f * 32768.0f);
+            s->fifo[i] = (float)f.left * k;
+            s->fifo[i + 1] = (float)f.right * k;
+        }
         s->wr++;
     }
 
@@ -218,7 +261,10 @@ MidiSynth* create_sc55(const Options& o, const std::string& romdir, int out_rate
     for (size_t i = 0; i < 24000000; ++i) s->emu.Step();
     s->fifo.assign(16384 * 2, 0.0f);
     s->emu.SetSampleCallback(Sc55::on_sample, s);
-    s->step = (double)PCM_GetOutputFrequency(s->emu.GetPCM()) / out_rate;
+    s->native_rate = (int)PCM_GetOutputFrequency(s->emu.GetPCM());
+    s->out_rate = out_rate;
+    s->step = (double)s->native_rate / out_rate;
+    s->set_lowpass(o.sclpf != 0);
     s->gain = midi_gain(o);
     s->lim.limit = o.scvoices;
     if (!o.scfx) s->set_fx(false);
