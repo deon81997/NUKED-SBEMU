@@ -90,6 +90,7 @@ void Engine::switch_out(int to)
     // the old output: silence it
     if (out_cur && ext) {
         MidiOutDev* o = ext.get();
+        prev_sent = o->sent(); prev_drop = o->dropped();
         tk.silence([o](uint8_t b) { o->put(b, 0); });
         DWORD tid;
         HANDLE t = CreateThread(NULL, 0, close_later, ext.release(), 0, &tid);
