@@ -7,7 +7,8 @@
 </tr>
 </table>
 
-<picture><img src="docs/90s/icon-book.gif" alt="book"></picture> <b><a href="https://github.com/deon81997/NUKED-SBEMU/wiki">~ Read the WIKI!! ~</a></b> <sub>(quick start, every switch, troubleshooting)</sub> <picture><img src="docs/90s/new.gif" alt="NEW!"></picture>
+<picture><img src="docs/90s/icon-book.gif" alt="book"></picture> <b><a href="https://github.com/deon81997/NUKED-SBEMU/wiki">~ Read the WIKI!! ~</a></b> <sub>(quick start, every switch, troubleshooting)</sub> <picture><img src="docs/90s/new.gif" alt="NEW!"></picture><br>
+<picture><img src="docs/90s/btn-awe32.gif" alt="AWE32"></picture> <b><a href="https://github.com/deon81997/NUKED-SBEMU-AWE">~ AWE32 / AWE64 edition ~</a></b> <sub>(the same pack plus an emulated EMU8000 wavetable at 620h)</sub>
 
 <table>
 <tr>
