@@ -1,3 +1,40 @@
+## beta.129 (2026-11-15, DOS session): no loud blast on the Ctrl+Alt+F11 MIDI output switch
+- On top of beta.128 (USB MIDI timing counters, parallel chat); EXEs rebuilt from this tree.
+- User: Ctrl+Alt+F11 while MIDPLAY plays gave a loud blast; close the old output cleanly, bring the new one up quietly
+  with the channel state before new notes, games too; D810 log: MIDPLAY also got every hotkey as key 018B (F11).
+- Causes (main.c MAIN_Replay/MAIN_Silence, beta.123): (1) the replay sent the GS/GM reset and right behind it every
+  channel's CCs - a real SC-55 (and its firmware in Nuked) needs ~50 ms after a reset and loses what comes sooner, so
+  volume / expression stayed at the reset's 100/127 = blast; (2) a USB replay of a few hundred packets went into the
+  1024-packet queue at once (MO_Usb did not wait): overflow drops the tail = the CC7/CC11 part; (3) TK_Sx (2 KB) filled
+  with repeated GS DT1s / SC-55 display SysEx, losing later SysEx; (4) old output: no F7 for an open SysEx, no CC121;
+  (5) vdiag.c only peeks port 60h, so the BIOS still queued Alt+F11 (018Bh) and MIDPLAY's handle_key forced a full
+  (3D) redraw on it.
+- Fix: MAIN_Silence = F7 if in SysEx, then per channel 64=0, 120, 123, 121. MAIN_Replay = per channel 120 + CC11=0,
+  SysEx each followed by F8 timing-clock padding (200 after a reset ~64 ms of cable time, 16 after others), per channel
+  121, CC11=0, CCs (not 7/11), program, RPN 0 sens, RPN select, bend, then CC7 and CC11 last; then running status /
+  half message. MO_Usb waits on USBPAD_MidiBusy() per byte (1 s cap, transport untouched). TK_SxStore: Roland DT1 to the
+  same address replaces the kept one, model 45h (display) not kept. Capture port 4 = SBEMU's own bytes to the synth
+  (MO_Synth). MIDPLAY get_input drops 0171/018B/018C/0167/0189/018A (SBEMU's Ctrl+Alt+F10/F11/F12, logged "SBEMU
+  hotkey 018B ignored") and pumps its /DBG ring (dbg_poll: before, lines after the first two stayed in the ring).
+  Tried and dropped: taking the key back out of the BIOS buffer from the sound ISR (vdiag.c) - MIDPLAY polls the
+  buffer and won every time (6/6); a real swallow needs INT 15h/4Fh or the VKBC port-60h trap (keyboard chat's area).
+- Tests (QEMU uhci, fake Uno, TimGM6mb): testrig/midi/switch.sh loud (MPUPLAY SWQ quiet GS set-up + SWL notes, 6 hotkeys)
+  and switch.sh midplay (MIDPLAY /DBG:COM1 genmid song, 6 hotkeys, COM1 -> file via rig.py env RIGCOM1FILE) + new
+  loudcheck.py (rebuilds both outputs from the capture; per-output MIDI model deaf for 150 bytes after a replayed reset
+  like a real SC-55; every note-on after a switch checked against the game's program/bank/vol/pan/expr/bend range;
+  old output: nothing held, no open SysEx; reset gap >= 150 F8). beta.129: loud PASS (1396 note-ons, 5 resets, gap 200),
+  midplay PASS (~10500 note-ons, 6 resets, MIDPLAY: 6 hotkeys seen and ignored, 0 acted on), midicap byte-exact PASS.
+  beta.127 EXEs (+ port-4 capture): loud FAIL (5 reset gaps of 0), midplay FAIL (4647 loud events: program 0, pan 64,
+  expression 127 after the lost replay; MIDPLAY acted on key 018B).
+- Speed: not re-measured on 86Box; the runtime path adds one compare per sound IRQ (O_SwallowEnd) and one capture
+  pointer test per replayed byte; switch-time code only otherwise.
+- Open: games still get Alt+F11 (harmless so far). Flake: 1 of 7 midplay rig runs MIDPLAY stopped right after "started" (COM1 log cut mid-line, 1 MPU write); rerun passed. GS NRPN (vibrato, TVF, drum levels) is still not replayed. xHCI: MO_Usb's wait gets
+  no pump from the trap (completions come from the ISR) - 1 s cap then drops.
+- Test downloads: DJGPP gcc 12.2 (andrewwutw build-djgpp v3.4), apt qemu-system-x86 mtools zstd socat nasm
+  timgm6mb-soundfont dosfstools, rufus sparse clone (testrig/rufus).
+- Next 3 steps: 1) D810 / P5PE-VM HWTEST beta.129 (Uno + SC-55, MIDPLAY + Duke 3D); 2) replay GS NRPNs (98/99 + 6) per
+  channel; 3) swallow SBEMU hotkeys for games too (VKBC trap / INT 15h 4Fh, with the keyboard chat).
+
 ## beta.128 (2026-11-15, DOS session): USB MIDI hitches in Duke 3D on the D810 - timing counters + model
 - User: Duke 3D -> M-Audio Uno (UHCI) on the D810 has small music hitches (maybe game too). Their beta.127 /DBG log
   (6.5 min): load 0.9%, 376 sound IRQs/s, ISR max 91 us, MIDI median 168 / peak 1029 bytes/s, no drops/errors.

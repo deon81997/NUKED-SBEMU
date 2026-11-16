@@ -81,6 +81,7 @@ def main():
         e2 = dict(env); e2['FAKEMIDI_PID'] = '0151'; e2['FAKEMIDI_NAME'] = 'Second MIDI Cable'
         fm2 = subprocess.Popen([sys.executable, os.path.join(TR, 'fakemidi.py'), str(port + 60), flog.replace('.log', '-2.log')], env=e2); time.sleep(0.5)
         args += ['-chardev', 'socket,id=midi2b,host=127.0.0.1,port=%d,reconnect=1' % (port + 60), '-device', 'usb-redir,chardev=midi2b,id=midi2b,bus=u.0']
+    if os.environ.get('RIGCOM1FILE'): args += ['-serial', 'file:' + os.environ['RIGCOM1FILE']]   # beta.129: COM1 -> file (/DBG lines)
     keys = [x.split(':', 1) for x in sys.argv[sys.argv.index('--keys') + 1].split(',')] if '--keys' in sys.argv else []
     if keys: args += ['-global', 'i8042.kbd-throttle=on']     # beta.123: --keys T:qemu-key,... (e.g. 40:ctrl-alt-f11)
     q = subprocess.Popen(args, stdout=open(W + '/qemu.log', 'w'), stderr=subprocess.STDOUT)

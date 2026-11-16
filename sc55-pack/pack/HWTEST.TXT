@@ -1,6 +1,15 @@
-NUKED SB-EMU - REAL HARDWARE CHECKLIST (beta.128)
+NUKED SB-EMU - REAL HARDWARE CHECKLIST (beta.129)
 Things an emulator cannot confirm. Tick each one; for any failure keep
 C:\SC55\BUGREP.TXT (MENU > Tests > Bug report) and CRASH.TXT if there is one.
+
+[ ] beta.129 quiet MIDI output switch (D810 or P5PE-VM, Uno + SC-55):
+    SC55 (emulated SC-55), MIDPLAY a GS song with quiet parts (or any song,
+    master volume low on the SC-55). While it plays press Ctrl+Alt+F11 ten
+    times, about 3 s apart (synth <-> USB 1). Each switch: no loud blast or
+    burst, the old output goes quiet at once, the new one comes in at the
+    song's level with the right instruments within ~0.1 s; MIDPLAY does not
+    redraw or react (its log has no "key 018B"). Then the same in Duke 3D.
+    Afterwards SBDIAG USB > C:\SC55\MOUT1.TXT (dropped must be 0).
 
 [ ] beta.128 USB MIDI hitches, D810 + M-Audio Uno + Duke 3D + DBGLOG.PY:
     serial cable as for beta.127, on the main PC  python DBGLOG.PY COM3

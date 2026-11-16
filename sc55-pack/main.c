@@ -763,6 +763,23 @@ static int TK_IsReset(const uint8_t* m, int n)
     if (n >= 8 && m[1] == 0x41 && m[3] == 0x16 && m[4] == 0x12 && m[5] == 0x7F) return 1;                    /* MT-32 reset */
     return 0;
 }
+/* beta.128: the SysEx kept since the last reset, for a replay. A Roland DT1 (41 dd mm 12 a a a ..) to an address
+ * already kept replaces that one (a song that sets part levels again and again no longer fills the 2 KB and loses
+ * the later ones); SC-55 display messages (model 45h: text / bitmaps, sent all through some songs) are not kept. */
+static void TK_SxStore(const uint8_t* m, int n)
+{
+    int i = 0, l;
+    if (n >= 5 && m[1] == 0x41 && m[3] == 0x45) return;
+    if (n >= 10 && m[1] == 0x41 && m[4] == 0x12)
+        for (i = 0; i < TK_SxN; i += l)
+        {
+            const uint8_t* k = TK_Sx + i;
+            for (l = 1; i + l < TK_SxN && k[l] != 0xF7; l++) {}
+            l++;
+            if (l == n && !memcmp(k, m, 8)) { memcpy(TK_Sx + i, m, (size_t)n); return; }
+        }
+    if (TK_SxN + n <= TK_SXMAX) { memcpy(TK_Sx + TK_SxN, m, (size_t)n); TK_SxN += n; }
+}
 static void TK_Msg(uint8_t st, const uint8_t* d)
 {
     int ch = st & 15;
@@ -790,7 +807,7 @@ static void TK_Byte(uint8_t b)
         {
             TK_Cur[TK_CurN++] = b;
             if (TK_IsReset(TK_Cur, TK_CurN)) { TK_Clear(); TK_SxN = 0; }
-            if (TK_SxN + TK_CurN <= TK_SXMAX) { memcpy(TK_Sx + TK_SxN, TK_Cur, (size_t)TK_CurN); TK_SxN += TK_CurN; }
+            TK_SxStore(TK_Cur, TK_CurN);
         }
         if (b == 0xF7) return;
     }
@@ -806,29 +823,55 @@ static void TK_Byte(uint8_t b)
     TK_Have = 0;
     TK_Msg((uint8_t)TK_Rs, TK_D);
 }
-/* the two outputs as byte sinks */
-static void MO_Synth(uint8_t b) { if (MAIN_SynthMPU) MAIN_SynthMPU(MAIN_MpuBase, b, 1); }
-static void MO_Usb(uint8_t b) { uint8_t r[2] = { 3, b }; MAIN_CapPut(0, r, 2); USBPAD_MidiByte(b); }
+/* the two outputs as byte sinks. USB (beta.128): a switch sends a few hundred bytes at once; the queue (1024
+ * packets) used to overflow and drop the volume / expression part of the replay (the song then came in at full
+ * level). Now each byte waits while the queue is nearly full, as the game does on the busy bit (1 s cap). */
+static void MO_Synth(uint8_t b) { uint8_t r[2] = { 4, b }; MAIN_CapPut(0, r, 2); if (MAIN_SynthMPU) MAIN_SynthMPU(MAIN_MpuBase, b, 1); }   /* capture port 4 = SBEMU's own byte to the synth */
+static void MO_Usb(uint8_t b) { uint8_t r[2] = { 3, b }; MAIN_CapPut(0, r, 2); while (USBPAD_MidiBusy()) {} USBPAD_MidiByte(b); }
 static void MO_Put3(void (*o)(uint8_t), int a, int b, int c) { o((uint8_t)a); o((uint8_t)b); if (c >= 0) o((uint8_t)c); }
+/* wire time for the synth: a GS / GM reset needs ~50 ms before the next message (Roland), or a real SC-55 (and the
+ * emulated one, same firmware) loses what follows - the volume / expression replay. Timing clock (F8h) bytes are
+ * ignored by the synth and take 0.32 ms each on the cable / emulated UART. */
+static void MO_Gap(void (*o)(uint8_t), int n) { while (n-- > 0) o(0xF8); }
+#define TK_GAP_RESET 200    /* ~64 ms */
+#define TK_GAP_SX 16        /* ~5 ms between other SysEx */
+/* the old output: end a half-sent SysEx, then per channel sustain off, All Sound Off, All Notes Off, Reset All
+ * Controllers (beta.128: + F7, + 121; sound off before notes off so release tails stop at once) */
 static void MAIN_Silence(void (*o)(uint8_t))
 {
     int ch;
-    for (ch = 0; ch < 16; ch++) { MO_Put3(o, 0xB0 | ch, 64, 0); MO_Put3(o, 0xB0 | ch, 123, 0); MO_Put3(o, 0xB0 | ch, 120, 0); }
+    if (TK_InSx) o(0xF7);
+    for (ch = 0; ch < 16; ch++)
+    { MO_Put3(o, 0xB0 | ch, 64, 0); MO_Put3(o, 0xB0 | ch, 120, 0); MO_Put3(o, 0xB0 | ch, 123, 0); MO_Put3(o, 0xB0 | ch, 121, 0); }
 }
+static int TK_HasCC(int ch, int c) { return (TK_CCSet[ch][c >> 5] >> (c & 31)) & 1; }
+/* the new output (beta.128 order): every channel silent first (all sound off, expression 0), the reset + SysEx with
+ * time to take them, then per channel controllers, bank + program, pitch bend range, bend, and volume + expression
+ * last, so nothing can sound at the reset's full level; then the game's running status / half message */
 static void MAIN_Replay(void (*o)(uint8_t))
 {
-    int ch, c, i;
-    for (i = 0; i < TK_SxN; i++) o(TK_Sx[i]);
+    int ch, c, i, l;
+    for (ch = 0; ch < 16; ch++) { MO_Put3(o, 0xB0 | ch, 120, 0); MO_Put3(o, 0xB0 | ch, 11, 0); }
+    for (i = 0; i < TK_SxN; i += l)
+    {
+        for (l = 0; i + l < TK_SxN && TK_Sx[i + l] != 0xF7; l++) o(TK_Sx[i + l]);
+        if (i + l < TK_SxN) o(0xF7);
+        l++;
+        MO_Gap(o, TK_IsReset(TK_Sx + i, l) ? TK_GAP_RESET : TK_GAP_SX);
+    }
     for (ch = 0; ch < 16; ch++)
     {
         MO_Put3(o, 0xB0 | ch, 121, 0);
-        for (c = 0; c < 120; c++) if (TK_CCSet[ch][c >> 5] & (1u << (c & 31))) MO_Put3(o, 0xB0 | ch, c, TK_CC[ch][c]);   /* bank 0/32 first */
+        MO_Put3(o, 0xB0 | ch, 11, 0);                                    /* 121 sets expression back to 127 */
+        for (c = 0; c < 120; c++) if (c != 7 && c != 11 && TK_HasCC(ch, c)) MO_Put3(o, 0xB0 | ch, c, TK_CC[ch][c]);   /* bank 0/32 first */
         if (TK_ProgSet & (1 << ch)) MO_Put3(o, 0xC0 | ch, TK_Prog[ch], -1);
         if (TK_SensSet & (1 << ch))
         { MO_Put3(o, 0xB0 | ch, 101, 0); MO_Put3(o, 0xB0 | ch, 100, 0); MO_Put3(o, 0xB0 | ch, 6, TK_Sens[ch][0]); MO_Put3(o, 0xB0 | ch, 38, TK_Sens[ch][1]);
           MO_Put3(o, 0xB0 | ch, 101, 127); MO_Put3(o, 0xB0 | ch, 100, 127); }
         if (TK_Rpn[ch][0] != 0x7F || TK_Rpn[ch][1] != 0x7F) { MO_Put3(o, 0xB0 | ch, 101, TK_Rpn[ch][0]); MO_Put3(o, 0xB0 | ch, 100, TK_Rpn[ch][1]); }
         if (TK_PbSet & (1 << ch)) MO_Put3(o, 0xE0 | ch, TK_Pb[ch][0], TK_Pb[ch][1]);
+        if (TK_HasCC(ch, 7)) MO_Put3(o, 0xB0 | ch, 7, TK_CC[ch][7]);
+        MO_Put3(o, 0xB0 | ch, 11, TK_HasCC(ch, 11) ? TK_CC[ch][11] : 127);
     }
     /* where the game is now: in a SysEx (the bytes so far) or after a status (it may use running status next) */
     if (TK_InSx) for (i = 0; i < TK_CurN && i < (int)sizeof TK_Cur; i++) o(TK_Cur[i]);

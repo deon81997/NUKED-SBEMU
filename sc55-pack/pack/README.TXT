@@ -1287,7 +1287,10 @@ CONTENTS
      The old output's notes stop; the new one first gets the last GM/GS
      reset and SysEx, then every channel's bank, instrument, controllers,
      pitch bend range and pitch bend, so a song keeps playing with the
-     right instruments. The emulated synth uses no CPU while USB has the
+     right instruments. Since beta.128 the new output is silent until then,
+     gets ~60 ms after the reset (a real SC-55 needs it) and the volume and
+     expression last, so it never comes in loud. MIDPLAY ignores the key
+     (games see it as Alt+F11, which they do not use). The emulated synth uses no CPU while USB has the
      music. Without ROMs or a SoundFont there is only USB to switch to.
    - Where to see it: MENU's status panel (device, on / plug in / out /
      error), MENU > Tests > "USB MIDI test (MPUTEST /USB)", SETTINGS (MIDI
