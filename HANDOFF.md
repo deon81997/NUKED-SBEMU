@@ -1,3 +1,6 @@
+## Docs (2026-11-15): MT-32 / CM-32L ROMs from 86box/roms
+- README "Stuff you bring yourself" + wiki Synths (priavte wiki/src) point to github.com/86box/roms (sound/mt32, mt32_new, cm32l, cm32ln), repo link only. Finders (sbemu/vmpu_mt32.cpp, win98/helper/romscan.cpp) identify by content (Munt ROMInfo), flat folder: those names work, no code change. mt32 and mt32_new share file names (one per flat folder). SC-55 ROMs not in that set. Live wiki page not reposted yet (browser step).
+
 ## beta.130 (2026-11-15, DOS session): stuck right arrow in Duke 3D on the D810 keyboard (hotkey watcher stole key bytes)
 - User: D810 built-in keyboard (no USB), Duke 3D only: right arrow sometimes stays held, nothing releases it. Level-1 /DBG had
   no key events. Keyboard path only (USB MIDI out + MIDI switch belong to other chats).

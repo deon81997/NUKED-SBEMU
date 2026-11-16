@@ -1099,6 +1099,8 @@ the same GPL.
 | **GSCDROM.SYS** (LG) | LG drives XCDROM doesn't like (optional) | [DOS Days](https://www.dosdays.co.uk/topics/Software/optical_downloads.php) | `FILES\GSCDROM` |
 | **QEMM 8 / 9** | `SC55QMM.BAT` only (optional) | Out of print; JEMMEX + QPIEMU (included) does the same job | `FILES\QEMM` |
 
+**MT-32 / CM-32L mode** uses the same files as 86Box's ROM set, [86box/roms](https://github.com/86box/roms) (folders `sound/mt32`, `sound/mt32_new`, `sound/cm32l`, `sound/cm32ln`). Copy one folder's control + PCM pair into `FILES\ROMS`: ROMs are found by content, so `MT32_CONTROL.ROM`, `MT32_PCM.ROM`, `CM32L_*.ROM` work as they are (short 8.3 names on plain DOS too). `mt32` and `mt32_new` use the same file names, so rename one if you want both. The SC-55 ROMs are **not** in that set.
+
 **Free test games!!** <picture><img src="docs/90s/ic-pad.gif" alt=""></picture> Ten shareware games to try the pack with are waiting in
 [Free Shareware Games!!](#-free-shareware-games-) just below.
 
