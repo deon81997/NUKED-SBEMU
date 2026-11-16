@@ -1,6 +1,19 @@
-NUKED SB-EMU - REAL HARDWARE CHECKLIST (beta.129)
+NUKED SB-EMU - REAL HARDWARE CHECKLIST (beta.130)
 Things an emulator cannot confirm. Tick each one; for any failure keep
 C:\SC55\BUGREP.TXT (MENU > Tests > Bug report) and CRASH.TXT if there is one.
+
+[ ] beta.130 stuck right arrow in Duke 3D (D810, built-in keyboard; cable
+    as for beta.127 below). Main PC:  python DBGLOG.PY COM3 -k K -k E!
+    DOS PC:  SC55 /DBG:COM1:2  then Duke 3D, 15 minutes, lots of turning with
+    the arrows held, Ctrl (fire) and Alt (strafe) in the middle, two arrows at
+    once. Expected: no key stays held. The live lines are "K T E0 4D make" /
+    "K T E0 4D break" (T = Duke read it through SBEMU's trap). If a key sticks:
+    note the time, let go of everything, wait 3 s, send the dbg-*.log: the
+    last K lines show whether a break never came (keyboard/EC), came without
+    its E0 (prefix lost), or SBEMU handled it ("L" or "U" lines).
+    Control run: SC55 /DBG:COM1:2 /KEYTRAP:0 (old way) - same play; does it
+    stick again (and how soon)? Also once: Ctrl+Alt+F12 in Duke (front panel
+    on/off) and Ctrl+Alt+F11 (MIDI output) still work -> "K hotkey" lines.
 
 [ ] beta.129 quiet MIDI output switch (D810 or P5PE-VM, Uno + SC-55):
     SC55 (emulated SC-55), MIDPLAY a GS song with quiet parts (or any song,

@@ -1,3 +1,28 @@
+## beta.130 (2026-11-15, DOS session): stuck right arrow in Duke 3D on the D810 keyboard (hotkey watcher stole key bytes)
+- User: D810 built-in keyboard (no USB), Duke 3D only: right arrow sometimes stays held, nothing releases it. Level-1 /DBG had
+  no key events. Keyboard path only (USB MIDI out + MIDI switch belong to other chats).
+- Cause: vdiag.c ovl_tick (Ctrl+Alt+F10/F11/F12 watcher, every sound IRQ) read 64h then, with OBF clear, 60h itself. A byte
+  completing between those reads was taken from the KBC: real 8259 = IRQ 1 dropped (spurious 7), QEMU = the game reads the next
+  byte. Duke's Build keyhandler turns E0 CD without its E0 into keypad-6 up, so "turn right" (KP6 / Right) stays down and Right
+  again does not clear KP6. Second path (only with /JOY on = USB init OK, D810 default): vkbc.c inject() "unstuck" read ANY
+  keyboard byte seen waiting at two IRQs 50 ms apart - with typematic arrows that can be a fresh real byte, given back later
+  out of order via D2h.
+- Fix: PM port-60h trap (HDPMIPT, vkbc VKBC_IOHandler pass-through) feeds DIAG_KeyFeed ring; the watcher processes those and
+  looks at 60h itself only with no trap or 30 s without a trapped read (DOS prompt / RM programs without JEMM). No RM trap
+  added (QPIEMU re-reads trapped ports). Unstuck only for SBEMU's own byte (Ours) and only with IRQ 1 not pending (IRR).
+  /KEYTRAP:0 = old way. /DBG level 2 "K T|L|I|U [E0 ]xx make|break" + "K hotkey ..." (DBGLOG.PY colour, DBGLOG.TXT);
+  level 3 capture now has port 60h records (trapped). README.TXT /KEYTRAP, HWTEST beta.130 item.
+- Tests: testrig/dukekey/run.sh SECS EXE_DIR SEED (QEMU dos71 HIMEM+HDPMI32I, OHCI no device, /VSF, /DBG:COM1:2; DKEY.EXE =
+  Duke's INT 9 keyhandler; keys.py QMP: held arrows + 33 ms repeats, Ctrl/Alt/AltGr/RCtrl mid-hold, two keys at once, taps).
+  Plain builds never lost a byte in QEMU (window ~ns); with -DKTEST_GAP_US=300 (gap between the 64h and 60h reads):
+  beta.127 FAIL 3 stuck (KP4/KP6/KP2 = lost E0s), beta.130 PASS (seeds 1, 2, 5), /KEYTRAP:0 FAIL again; release build PASS
+  (seeds 3, 6); HOTKEY=1 Ctrl+Alt+F12 x2 -> 2 "K hotkey" lines; keysoak 2 min PASS; menustat PASS. Speed (dbg/perf.sh, 86Box
+  PII-450 ES1371 TimGM6mb): beta.127 vs new both 61% CPU, ISR 1.77 ms. SC55LOG not run (no ROMs in the public build).
+- Open: USBKB=1 (keys through QEMU usb-kbd) leaves keys stuck on beta.127 AND beta.130 - VKBC inject at 40 IRQ/s in QEMU can't
+  keep up with keys.py's rate (KsDropped?); not the D810 bug, check with a realistic rate before calling it a bug.
+- Next 3 steps: 1) D810 HWTEST beta.130 (dbg log with K lines, /KEYTRAP:0 control); 2) if it still sticks: the last K lines say
+  break never came (EC) / E0 lost / L-U lines; 3) the USBKB open item above.
+
 ## beta.129 (2026-11-15, DOS session): no loud blast on the Ctrl+Alt+F11 MIDI output switch
 - On top of beta.128 (USB MIDI timing counters, parallel chat); EXEs rebuilt from this tree.
 - User: Ctrl+Alt+F11 while MIDPLAY plays gave a loud blast; close the old output cleanly, bring the new one up quietly

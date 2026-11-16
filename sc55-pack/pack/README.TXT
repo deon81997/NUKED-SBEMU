@@ -587,6 +587,11 @@ CONTENTS
                            DMA/IRQ, 3 + port capture sent on Ctrl+Alt+F10.
                            In batch files use ':' (SC55 /DBG:COM1:2).
                            Cables and setup: C:\SC55\DBGLOG.TXT
+     /KEYTRAP:0            old hotkey watcher (beta.130 default 1: SBEMU
+                           sees Ctrl+Alt+F10/F11/F12 through a port 60h trap
+                           and no longer reads the keyboard itself, which
+                           could steal a key byte from the game - stuck
+                           arrows in Duke 3D). Level 2 /DBG shows K lines.
      /VMPU[:0]             virtual MPU-401 on (SC-55 or SoundFont); /VMPU=0
                            turns it off. Also switched on by /VSCROM, /VSCSET
                            or /VSF.

@@ -1170,6 +1170,7 @@ struct MAIN_OPT
     "/USBKB", "USB keyboard typed through the PC's keyboard controller (1=on, 0=off; needs /JOY:1)", 1, MAIN_SETCMD_BASE10,
     "/USBMS", "USB mouse for a DOS mouse driver loaded after SBEMU (1=auto, 2=always, 0=off; needs /JOY:1). Without JEMM/QEMM it goes through the BIOS, next to the touchpad", 1, MAIN_SETCMD_BASE10,
     "/USBDISK", "USB sticks / card readers as DOS drive letters, FAT12/16/32, read and write (1=on, 0=off; needs /JOY:1 and LASTDRIVE high enough). Experimental", 0, MAIN_SETCMD_BASE10,
+    "/KEYTRAP", "Hotkeys (Ctrl+Alt+F10/F11/F12) seen through a port 60h trap instead of SBEMU reading the keyboard controller itself, which could take a key from the game (stuck keys, beta.130) - 1=on, 0=old way", 1, MAIN_SETCMD_BASE10,
     "/USB", "USB in DOS at all: 0 = SBEMU does not touch any USB controller (no USB pad / keyboard / mouse / disk / MIDI; the BIOS keeps its USB keyboard), 1 = on", 1, MAIN_SETCMD_BASE10,
     "/USBSKIP", "USB controllers SBEMU leaves alone, e.g. /USBSKIP:1033:00E0 (PCI vendor:device) or /USBSKIP:01:05.2 (PCI bus:device.function), several joined with +. The IDs are in SBDETAIL.TXT", (uintptr_t)"", MAIN_SETCMD_STR,
     "/JOYBIOS", "BIOS joystick calls (INT 15h AH=84h) answered from the USB pad too (1=on, 0=off; needs /JOY:1)", 1, MAIN_SETCMD_BASE10,
@@ -1251,6 +1252,7 @@ enum EOption
     OPT_USBKB,
     OPT_USBMS,
     OPT_USBDISK,
+    OPT_KEYTRAP,
     OPT_USB,
     OPT_USBSKIP,
     OPT_JOYBIOS,
@@ -1726,6 +1728,10 @@ static BOOL MAIN_JOY_RM, MAIN_JOY_PM, MAIN_JOY_On;
 static QEMM_IODT MAIN_KBC_IODT[2] = { { 0x60, (void*)&VKBC_IOHandler }, { 0x64, (void*)&VKBC_IOHandler } };
 static QEMM_IOPT MAIN_KBC_IOPT, MAIN_KBC_IOPT_PM60, MAIN_KBC_IOPT_PM64;
 static BOOL MAIN_KBC_RM, MAIN_KBC_PM60, MAIN_KBC_PM64;
+/* beta.130 (/KEYTRAP): protected-mode reads of port 60h through vkbc.c's handler, so the hotkey watcher sees each key
+ * byte the game reads and never reads the controller itself (see DIAG_KeyFeed) */
+static QEMM_IOPT MAIN_KEY_IOPT_PM;
+static BOOL MAIN_KEY_PM;
 static HDPMIPT_IRQRoutedHandle OldRoutedHandle = HDPMIPT_IRQRoutedHandle_Default;
 static HDPMIPT_IRQRoutedHandle OldRoutedHandle5 = HDPMIPT_IRQRoutedHandle_Default;
 static HDPMIPT_IRQRoutedHandle OldRoutedHandle7 = HDPMIPT_IRQRoutedHandle_Default;
@@ -1737,6 +1743,8 @@ static void MAIN_Cleanup()
     if(MAIN_KBC_RM) { QEMM_Uninstall_IOPortTrap(&MAIN_KBC_IOPT); MAIN_KBC_RM = FALSE; }
     if(MAIN_KBC_PM60) { HDPMIPT_Uninstall_IOPortTrap(&MAIN_KBC_IOPT_PM60); MAIN_KBC_PM60 = FALSE; }
     if(MAIN_KBC_PM64) { HDPMIPT_Uninstall_IOPortTrap(&MAIN_KBC_IOPT_PM64); MAIN_KBC_PM64 = FALSE; }
+    if(MAIN_KEY_PM) { HDPMIPT_Uninstall_IOPortTrap(&MAIN_KEY_IOPT_PM); MAIN_KEY_PM = FALSE; }
+    DIAG_KeyTrap(0);
     USBREDIR_Uninstall();
     USBDISK_Uninstall();
     if(MAIN_JOY_On) { MAIN_JOY_On = FALSE; USBPAD_Shutdown(); }
@@ -2832,6 +2840,11 @@ int main(int argc, char* argv[])
     }
     else if(MAIN_Options[OPT_MUSB].value)
         MAIN_CPrintf(YELLOW, "USB MIDI (/MUSB) needs SBEMU's USB (/JOY:1): off.\n");
+    if(MAIN_Options[OPT_KEYTRAP].value && enablePM && !MAIN_KBC_PM60)
+        MAIN_KEY_PM = HDPMIPT_Install_IOPortTrap(0x60, 0x60, MAIN_KBC_IODT, 1, &MAIN_KEY_IOPT_PM);
+    DIAG_KeyTrap(MAIN_Options[OPT_KEYTRAP].value && (MAIN_KEY_PM || MAIN_KBC_PM60));
+    MAIN_D("Hotkey watcher: %s (/KEYTRAP:%d, pm trap %d, kbc traps rm %d pm %d)\n", (MAIN_KEY_PM || MAIN_KBC_PM60) && MAIN_Options[OPT_KEYTRAP].value
+        ? "port 60h trap (looks itself only after 30 s without a trapped read)" : "looks at port 60h itself", MAIN_Options[OPT_KEYTRAP].value, MAIN_KEY_PM, MAIN_KBC_RM, MAIN_KBC_PM60);
 
     MAIN_LogCommit();
     /* Close the log before going resident. Until beta.28 the resident SBEMU kept SBLOG.TXT open as its

@@ -69,6 +69,12 @@ LINES:  <seconds since SBEMU started> <source> <kind> <text>
   kind    E error (SBEMU waits until it has left the cable before going on)
           ! fatal  I event  S stats  F per-frame (level 2)
           T capture record: T <microseconds> <i|o> <port> <value>
+          K keyboard (level 2, beta.130): K <how> [E0 ]<scan> make|break
+            how: T = the game read it (through SBEMU's port 60h trap),
+            L = SBEMU looked at port 60h itself (no trap: DOS prompt,
+            real-mode programs), I = SBEMU typed it (USB keyboard / pad),
+            U = SBEMU took back a byte of its own nobody read. Hotkeys:
+            "K hotkey Ctrl+Alt+F11". Stuck key hunt: -k K (see HWTEST).
   S line: prog = program running, load = SBEMU's share of the CPU, isr =
           sound interrupts/s, max = longest one, virq/ack = Sound Blaster
           IRQs given to the game / acknowledged by it, traps = port accesses
