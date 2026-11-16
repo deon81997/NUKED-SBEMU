@@ -55,6 +55,7 @@ public:
     std::string out_error;          // last switch that failed
     MidiOutDev::Clock clock = nullptr;
     const MidiOutDev* ext_dev() const { return ext.get(); }
+    unsigned prev_sent = 0, prev_drop = 0;   // the external device switched away from: bytes it sent / lost
 
     // CPU: the sound output can be stopped while nothing makes a sound (synths asleep, no DMA,
     // no direct DAC, the last second rendered was exact silence and no input is waiting).

@@ -140,6 +140,18 @@ struct Published {
     unsigned mout_sent = 0, mout_drop = 0;
     uint32_t mpu_ignored = 0;
 } g_pub;
+// w98.8: what the DOS boxes / Windows programs sent, every 10 s while it changes (SC55W.LOG, for BUGREP)
+static void logf(const char* fmt, ...);
+static void log_activity(const EngineStats& s, DWORD now, double load)
+{
+    static DWORD t; static unsigned m, o, p;
+    if (now - t < 10000) return;
+    t = now;
+    if (s.midi_bytes == m && s.opl_writes == o && s.pcm_frames == p) return;
+    m = s.midi_bytes; o = s.opl_writes; p = s.pcm_frames;
+    logf("activity: MIDI %u bytes, FM %u writes, digital %u frames, late %u, resyncs %u, MPU ignored %u, load %.1f%%", m, o, p,
+         s.late_events, s.resyncs, g_sh ? (unsigned)g_sh->mpu_ignored : 0u, load * 100);
+}
 // MIDI output switch (w98.8, DOS /MOUT): -1 none, 0 emulated synth, n = Windows MIDI out device n-1. The tray
 // menu, the settings window and "SC55W /MOUT:x" set it; the audio thread hands it to the engine.
 static volatile LONG g_mout_req = -1;
@@ -485,6 +497,7 @@ static DWORD WINAPI audio_main(LPVOID)
                 }
                 if (eng.st.out_asleep) { eng.st.out_asleep = false; eng.wake_output(); }
                 if (n > 0) { eng.render(sh, vxd_now(), tmp, n); rec_write(tmp, n); }
+                log_activity(eng.st, now, load);
                 Sleep(25);
                 continue;
             }
@@ -655,10 +668,15 @@ static DWORD WINAPI audio_main(LPVOID)
                  underruns, eng.st.midi_idle ? "synth idle" : "synth running");
         }
 
+        log_activity(eng.st, now, load);
         {   // MIDI output switches and failures, MPU intelligent-mode bytes ignored: SC55W.LOG
             static std::string lo = "emulated synth", le; static uint32_t li;
             std::string o = eng.out_name.empty() ? std::string("emulated synth") : eng.out_name;
-            if (o != lo) { logf("MIDI output: %s", o.c_str()); lo = o; }
+            if (o != lo) {
+                if (lo != "emulated synth") logf("MIDI output: %s (%s sent %u bytes, lost %u)", o.c_str(), lo.c_str(), eng.prev_sent, eng.prev_drop);
+                else logf("MIDI output: %s", o.c_str());
+                lo = o;
+            }
             if (eng.out_error != le) { if (!eng.out_error.empty()) logf("MIDI output switch failed: %s", eng.out_error.c_str()); le = eng.out_error; }
             if (g_sh && g_sh->mpu_ignored && !li) logf("MPU-401: a program sent intelligent-mode sequencer bytes (ignored)");
             if (g_sh) li = g_sh->mpu_ignored;
@@ -1448,7 +1466,8 @@ static std::string file_version(const std::string& path)
     size_t n;
     while ((n = fread(buf, 1, sizeof buf, f)) > 0) s.append(buf, n);
     fclose(f);
-    size_t p = s.find("$VER: NUKED SB-EMU ");
+    std::string needle = std::string("$VER") + ": NUKED SB-EMU ";   // not one literal: it would find itself
+    size_t p = s.find(needle);
     if (p == std::string::npos) return "no version tag (older than 1.0.0-beta.130-w98.8)";
     size_t e = s.find(" (", p + 19);
     return s.substr(p + 19, e == std::string::npos ? 32 : e - p - 19);
