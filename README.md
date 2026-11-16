@@ -7,6 +7,8 @@
 </tr>
 </table>
 
+<picture><img src="docs/90s/icon-book.gif" alt="book"></picture> <b><a href="https://github.com/deon81997/NUKED-SBEMU/wiki">~ Read the WIKI!! ~</a></b> <sub>(quick start, every switch, troubleshooting)</sub> <picture><img src="docs/90s/new.gif" alt="NEW!"></picture>
+
 <table>
 <tr>
 <td align="center" valign="top"><picture><img src="docs/90s/fd-marine-shoot.gif" alt="Freedoom marine"></picture><br><br><picture><img src="docs/90s/tux-waddle.gif" width="120" alt="Tux"></picture><br><br><picture><img src="docs/90s/fd-soulsphere.gif" alt="soul sphere"></picture><br><br><picture><img src="docs/90s/port220-small.gif" width="96" alt="Port 220"></picture><br><br><picture><img src="docs/90s/fd-hatchling.gif" alt="Freedoom hatchling"></picture><br><br><picture><img src="docs/90s/ic-speaker.gif" alt="speaker"></picture><br><br><picture><img src="docs/90s/vox-flopsy.gif" width="100" alt="Flopsy in voxels"></picture><br><br><picture><img src="docs/90s/fd-zombie.gif" alt="Freedoom zombie"></picture><br><br><picture><img src="docs/90s/ic-rocket.gif" alt="rocket"></picture></td>
