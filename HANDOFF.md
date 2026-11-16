@@ -769,6 +769,7 @@ Stopped by the user mid-task. Tree builds; tests/m3host/menurun.sh and run.sh pa
   filter does not change (2) (in band). Open: report the ST idle tone upstream / compare with a real SC-55ST.
 - Zip = beta.108 zip + SBEMU.EXE (1.0.0-beta.109) + README.TXT (/VSCLPF in the option list). To test on real PCs:
   SC-55 at 22050 with /VSCLPF:1 vs :0 (whistles on high notes / cymbals), CPU headroom on the D810 / Celeron.
+  DONE 2026-11-15: D810 at 22050 Hz, no whistles with /VSCLPF:1, whistles back with :0 (confirmed on real hardware).
 
 ## MIDPLAY sound recordings per ROM set x rate (2026-11-13, done)
 - notetest.sh: WAV=file (QEMU HDA; AC97 records only silence), SND, WARM / TAIL (silent songs: in QEMU the SC-55 starts
@@ -780,7 +781,7 @@ Stopped by the user mid-task. Tree builds; tests/m3host/menurun.sh and run.sh pa
   1. SC-55ST (st-v1.01): a constant tone under everything. Upstream nuked-sc55-render (built in /tmp/nb, needs
      librtmidi-dev libsdl2-dev) does the same at its native 66207 Hz: the tone is ~17 kHz / 32 kHz there (core / ROM).
      SBEMU's LINEAR resampler (sc55/sc55engine.hpp) folds it to an AUDIBLE 170-600 Hz hum (pitch changes with /K).
-     => SBEMU needs an anti-alias low-pass before decimating (also helps every set's highs). NOT done.
+     => SBEMU needs an anti-alias low-pass before decimating (also helps every set's highs). Done: /VSCLPF, beta.109.
   2. MT-32 / CM-32L silent: test songs on channel 1 (MT-32 parts 2-9, rhythm 10). On channel 2 (METRO2/PAD2): 20/20
      beats 0.99-1.01 s, no dropouts. Not a bug.
   3. JV-880 silent: upstream renderer silent with METRO.MID too (JV-880 is not GM/GS). Not ours; untested further.
