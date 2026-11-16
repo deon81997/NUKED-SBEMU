@@ -153,7 +153,9 @@ bool MidiOutDev::open(UINT id, Clock clk, std::string& err)
     ev = CreateEventA(NULL, FALSE, FALSE, NULL);
     DWORD tid;
     th = CreateThread(NULL, 0, thread_main, this, 0, &tid);
-    if (th) SetThreadPriority(th, THREAD_PRIORITY_TIME_CRITICAL);
+    // above normal, below the sound thread: a sound card's MPU-401 driver busy-waits at cable speed in midiOutShortMsg,
+    // so a burst (a replay, a backlog) must not starve the synth / Windows (86Box PII-450: 47 K bytes stalled SC55W)
+    if (th) SetThreadPriority(th, THREAD_PRIORITY_ABOVE_NORMAL);
     return true;
 }
 
@@ -175,7 +177,7 @@ void MidiOutDev::push(uint32_t t, uint16_t v)
     if ((unsigned)(hd - tail) >= RING) { n_drop++; return; }
     ring[(unsigned)hd % RING] = {t, v};
     InterlockedExchange(&head, hd + 1);
-    SetEvent(ev);
+    if (hd == tail) SetEvent(ev);              // the thread only waits when the ring is empty: one signal is enough
 }
 void MidiOutDev::put(uint8_t b, uint32_t t_us) { if (h) push(t_us, b); }
 void MidiOutDev::pause(int ms) { if (h) push(0, (uint16_t)(0x100 + (ms > 1000 ? 1000 : ms))); }
@@ -226,7 +228,7 @@ void MidiOutDev::out_byte(uint8_t b)
 void MidiOutDev::run()
 {
     while (!quit) {
-        if (head == tail) { WaitForSingleObject(ev, 50); continue; }
+        if (head == tail) { WaitForSingleObject(ev, 10); continue; }
         Item it = ring[(unsigned)tail % RING];
         if (it.v >= 0x100) { Sleep(it.v - 0x100); InterlockedIncrement(&tail); continue; }
         if (it.t && clock) {                        // each byte at its time (the synth's latency, block jitter gone)

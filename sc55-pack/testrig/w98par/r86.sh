@@ -16,10 +16,10 @@ mmd -i $I ::/SC55 ::/SC55/WIN98 ::/SC55/ROMS 2>/dev/null
 for f in SC55W.EXE SC55W2.EXE SC55W.VXD; do [ -f $SRC/$f ] && mcopy -o -i $I $SRC/$f ::/SC55/WIN98/$f; done
 mcopy -o -i $I $ROMS/* ::/SC55/ROMS/
 printf '/A:240 /I:7 /D:3 /H:7 /T:6 /P:300 /OPL:0\r\n' > $W/sbopts.txt; mcopy -o -i $I $W/sbopts.txt ::/SC55/SBOPTS.TXT
-printf '[SC55W]\r\nStartDelay=0\r\nRecordWav=C:\\REC.WAV\r\nJoystick=0\r\nJoyBios=0\r\nPadKeys=0\r\n' > $W/sc55w.ini; mcopy -o -i $I $W/sc55w.ini ::/SC55/WIN98/SC55W.INI
+printf '[SC55W]\r\nStartDelay=0\r\nRecordWav=C:\\REC.WAV\r\nJoystick=0\r\nJoyBios=0\r\nPadKeys=0\r\nMidiOut=${MOUT:-synth}\r\n' > $W/sc55w.ini; mcopy -o -i $I $W/sc55w.ini ::/SC55/WIN98/SC55W.INI
 mkdir -p $W/d/T && rm -rf $W/d/T/DUKE && cp -r /tmp/g/duke $W/d/T/DUKE && cp /tmp/tb/MSWITCH.EXE $W/d/T/
 sed -i 's/BlasterAddress = .*/BlasterAddress = 0x240/; s/BlasterInterrupt = .*/BlasterInterrupt = 7/; s/BlasterDma8 = .*/BlasterDma8 = 3/; s/BlasterDma16 = .*/BlasterDma16 = 7/; s/MidiPort = .*/MidiPort = 0x300/' $W/d/T/DUKE/DUKE3D.CFG
-{ echo '@ECHO OFF'; echo 'START C:\SC55\WIN98\SC55W2.EXE'; echo 'CHOICE /T:Y,120 /C:Y >NUL'
+{ echo '@ECHO OFF'; echo 'START C:\SC55\WIN98\SC55W2.EXE'; echo "CHOICE /T:Y,${WAIT:-120} /C:Y >NUL"
   [ "$SW" = 1 ] && echo 'START D:\T\MSWITCH.EXE 12 20 40 NEXT'
   echo 'D:'; echo 'CD \T\DUKE'; echo 'DUKE3D.EXE'; } | sed 's/$/\r/' > $W/d/T/T3.BAT
 mcopy -s -o -i $W/d.img@@32256 $W/d/T ::/

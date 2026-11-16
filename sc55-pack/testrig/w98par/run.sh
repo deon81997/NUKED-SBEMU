@@ -36,7 +36,8 @@ open(p,"w",newline="").write("\r\n".join(L)+"\r\n")' $t "$@"
 t) B=$3; MAX=${4:-900}; boot; run_cmd "D:\\T\\$B"; n=0
    while [ $n -lt "$MAX" ]; do sleep 20; n=$((n + 20)); mtype -i $W/test.img@@32256 ::/R/DONE.TXT 2>/dev/null | grep -q done && break; done
    $Q shot t-$VM-$B > /dev/null; waitoff 120; R=$W/r-$VM-${B%.*}; rm -rf $R; mkdir -p $R; mcopy -s -n -i $W/test.img@@32256 ::/R/* $R/ 2>/dev/null; ls $R ;;
-soak) B=$3; SECS=${4:-1800}; boot; run_cmd "D:\\T\\$B"; sleep 60; $Q shot soak-$VM-start > /dev/null; sleep $((SECS - 60))
+soak) B=$3; SECS=${4:-1800}; boot; run_cmd "D:\\T\\$B"; n=0
+   while [ $n -lt "$SECS" ]; do sleep 60; n=$((n + 60)); [ $((n % 300)) = 60 ] && $Q shot soak-$VM-$n > /dev/null 2>&1; done
    $Q shot soak-$VM-end > /dev/null; pkill -f "qemu-system-i386.*$IMG"; sleep 3; R=$W/r-$VM-soak; rm -rf $R; mkdir -p $R
    mcopy -n -i "$IMG"@@32256 ::/SC55/WIN98/SC55W.LOG $R/ && tr -d '\r' < $R/SC55W.LOG | grep -E 'activity' | sed -n '1p;$p' ;;
 uninstall) boot; run_cmd 'C:\SC55\WIN98\SC55W.EXE /UNINSTALL'; sleep 10; $Q shot un-$VM-1 > /dev/null; $Q key ret; sleep 20

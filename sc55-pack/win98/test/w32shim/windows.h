@@ -13,6 +13,7 @@ typedef uintptr_t DWORD_PTR, UINT_PTR; typedef char* LPSTR; typedef uint16_t WOR
 #define TRUE 1
 #define INFINITE 0xFFFFFFFFu
 #define THREAD_PRIORITY_TIME_CRITICAL 15
+#define THREAD_PRIORITY_ABOVE_NORMAL 1
 static inline LONG InterlockedExchange(volatile LONG* p, LONG v) { return __atomic_exchange_n(p, v, __ATOMIC_SEQ_CST); }
 static inline LONG InterlockedIncrement(volatile LONG* p) { return __atomic_add_fetch(p, 1, __ATOMIC_SEQ_CST); }
 static inline void Sleep(DWORD ms) { usleep(ms * 1000); }
