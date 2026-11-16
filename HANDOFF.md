@@ -1,3 +1,33 @@
+## beta.128 (2026-11-15, DOS session): USB MIDI hitches in Duke 3D on the D810 - timing counters + model
+- User: Duke 3D -> M-Audio Uno (UHCI) on the D810 has small music hitches (maybe game too). Their beta.127 /DBG log
+  (6.5 min): load 0.9%, 376 sound IRQs/s, ISR max 91 us, MIDI median 168 / peak 1029 bytes/s, no drops/errors.
+  Asked for USB MIDI counters on the stats line (transfers/s, bytes/transfer max, queue max, longest gap, NAKs).
+- Done: usbpad.c MStamp[] (TSC per queued packet), Mt counters, USBPAD_MidiTiming(); USB poll time measured only
+  while a MIDI pipe exists. dbglink.c: "S usbmidi tx bytes bmax q=now/max lat=avg/max wait gap paced nak retry
+  poll=avg/max" each second (only with USB MIDI), igap= (longest time between sound IRQs) at the end of every S
+  line. DBGLOG.TXT documents both; HWTEST beta.128 D810 item (hitch times + log, synth-mode control run).
+- Findings: testrig/midi/usbmodel.py (Duke's 7 GRP songs, 120 Hz music task, usbpad.c OUT logic, UHCI frames,
+  Uno UART buffer 0/64/256) at 376 IRQ/s: SBEMU adds p50 1.3 ms, p99 3-4 ms, max 4.7 ms after song start
+  (15 ms only in the song-start reset burst with a zero-buffer device); pacing never holds; 40 IRQ/s (old QEMU
+  rigs) = 12 ms p50. QEMU (hitch.sh, RIGTP=250 -> 301 IRQ/s, fake Uno = zero buffer): lat avg ~10 ms incl. wire
+  time, per-second max ~18-25 ms, nak/poll normal; one 68-82 ms outlier = igap 68 ms (QEMU host stall).
+  So queue depth, transfer batching, polling rate, ISR time, pacing, running status (USB packets have none),
+  SysEx (Duke sends none) and digital audio do not explain an audible hitch on the D810; cause still open ->
+  the user's next log (usbmidi + igap at the hitch seconds) decides: big lat/wait/gap = SBEMU, big igap = PC
+  stall (SMI etc.), all small = the Uno/module side.
+- Tried and dropped: kick the OUT pipe from the MPU status-read trap (UHCI/EHCI): model p50 1.3 -> 0.7 ms, max
+  unchanged, QEMU no better (wait max worse) - not shipped.
+- Tests: gamecap duke uhci PASS (4863 events identical); hitch.sh final uhci; perf (86Box P3B-F PII-450,
+  TimGM6mb 41 s): beta.127 61% CPU ISR 1.78 ms / beta.128 61% 1.78 ms. Zip = beta.127 zip + rezip.py.
+- Rigs: testrig/midi/hitch.sh TAG [HC] (env RIGTP AC97 timer-period, SECS, OLD; G=/tmp/g/duke with DUKE3D.CFG
+  MusicDevice 4 / MidiPort 0x330 / FXDevice 13 - FXDevice 0 fails "Playback failed ... DMA" in the FreeDOS rig),
+  hitchsum.py, usbmodel.py (--isr --buf --tick --policy isr,kick,append,nopace,fix --skipstart); rig.py env
+  RIGSERIAL (COM1 -> TCP), RIGTP, RIGCPU.
+- Test downloads: DJGPP v3.4, 86Box 0935207 (plain build, /home/claude/86box), roms, TimGM6mb, mido, pyserial, rufus.
+- Next 3 steps: 1) D810 HWTEST beta.128 log -> read usbmidi/igap at the user's hitch times; 2) if SBEMU-side:
+  append TDs to the in-flight UHCI chain (no ISR wait between transfers); 3) if igap: find the stall source
+  (SMI / BIOS USB legacy on EHCI, SpeedStep) with level-2 F lines.
+
 ## beta.127 (2026-11-15, DOS session): serial debug link (SBEMU /DBG, DBGLOG.PY)
 - User: /DBG:COM1|COM2[,baud][,level] (default off), level 1 events + errors + stats/s, 2 + per-frame port/DMA/IRQ,
   3 RAM capture of every trapped port sent on trigger/keypress; polled UART + ring, ISR/trap safe, flush on fatal;

@@ -75,6 +75,16 @@ LINES:  <seconds since SBEMU started> <source> <kind> <text>
           SBEMU caught, midi = MIDI bytes, drop = MIDI bytes lost, under =
           sound buffer underruns, sb = rate/bits/channels, lost = link lines
           that did not fit (level 2 at low baud).
+          igap = longest time without a sound interrupt that second (about
+          3 ms on the D810; much longer = the PC stopped for a moment).
+  S usbmidi line (beta.128, only with a USB MIDI cable in use), per second:
+          tx = USB transfers sent, bytes = USB MIDI bytes (4 per message),
+          bmax = most bytes in one transfer, q = messages queued now/most,
+          lat = game wrote it -> the cable took it, average/longest,
+          wait = longest wait before its transfer started, gap = longest
+          time between two transfers while MIDI waited, paced = holds to
+          31250 baud, nak = polls that found the cable still busy, retry =
+          transfers lost/redone, poll = SBEMU's USB poll time avg/longest.
 
 DBGLOG.PY FILTERS (the log file still gets every line):
   -k E!       only errors and fatal lines     -k S   only stats

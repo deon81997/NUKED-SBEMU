@@ -1,6 +1,16 @@
-NUKED SB-EMU - REAL HARDWARE CHECKLIST (beta.127)
+NUKED SB-EMU - REAL HARDWARE CHECKLIST (beta.128)
 Things an emulator cannot confirm. Tick each one; for any failure keep
 C:\SC55\BUGREP.TXT (MENU > Tests > Bug report) and CRASH.TXT if there is one.
+
+[ ] beta.128 USB MIDI hitches, D810 + M-Audio Uno + Duke 3D + DBGLOG.PY:
+    serial cable as for beta.127, on the main PC  python DBGLOG.PY COM3
+    (your COM). SETTINGS > MIDI synth = USB MIDI device, then  SC55 /DBG:COM1
+    and Duke 3D (music on, sound effects on) for 5 minutes. Each time you
+    hear a hitch, write down the time DBGLOG shows right then (and whether
+    the game also stuttered). Then the same 2 minutes with SETTINGS = the
+    emulated SC-55: hitches there too? Send the dbg-*.log and your times.
+    What it tells: the "S usbmidi" line of each hitch second (lat, wait,
+    gap, nak, retry) and igap= on the line above it - see DBGLOG.TXT.
 
 [ ] beta.127 serial debug link (P5PE-VM COM1, D810 via the D/Port's COM1),
     see C:\SC55\DBGLOG.TXT: null-modem cable + USB-serial adapter to the main
