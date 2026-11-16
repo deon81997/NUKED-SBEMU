@@ -1,3 +1,59 @@
+## beta.130-w98.8 (2026-11-16, Win98 session): Windows 98 part brought up to DOS beta.130 (RELEASED, tag v1.0.0-beta.130-w98.8-usb)
+User: bring the Win98 side (VxD, MIDI driver, joystick driver, control panel/tray, installer) to the DOS feature set where it
+applies. Last Win98 release was beta.91-w98.7; DOS sections beta.92-130 triaged (applies / n/a / different approach):
+- APPLIES, ported: beta.109 SC-55 low-pass (/VSCLPF) - helper/synths.cpp Sc55: 3 biquads (6th order Butterworth, fc 0.42 x out
+  rate) on the native frames before the resampler when out rate < native (default 22050 = on); FLOAT DF2T + 1e-12 offset
+  (no denormals on the x87 PII build; DOS's int64 maths is ~3 muls each on i686). Settings checkbox "Low-pass", SBOPTS /VSCLPF.
+  beta.122 MPU-401 front end - vxd/sbcore.c mpu_cmd/mpu_data (= main.c MU_*): every command ACKed, ACh/ADh/AFh answered,
+  D0-D7 one message (running status re-sent: Windows-app MIDI shares the ring), DFh SysEx, E0-EFh parameter swallowed,
+  sequencer data counted (SC55W_SHARED.mpu_ignored, IF 9, size 529568); status bit 6 busy while the event ring is 3/4 full
+  and SC55W drains it (1 s without progress lets the game on). beta.123/129 MIDI output switch - helper/midiroute.cpp
+  (MidiTracker = TK_*, silence/replay in the beta.129 order incl. 200/16 F8 gaps; MidiOutDev = Windows midiOut device fed by
+  a thread, each byte at its event time + latency; midi_out_list skips our own "NUKED" driver), Engine::midi_in/switch_out
+  (switch in the audio thread; old device drained+closed on a thread). UI: tray "MIDI to" submenu, Settings "MIDI to"
+  combo, SC55W /MOUT:SYNTH|USB|USBn|NEXT|n|name (also to a running SC55W, WM_REMOTE 4/5), SC55W.INI MidiOut= (kept),
+  SBOPTS /MUSB:1 = start on the first USB device. beta.125 pad keys - helper/pad.cpp axis_on (16000 at /JOYDZ 10, +328/%,
+  off < 3/4, armed after |v| < thr/2, two polls), buttons 2 equal polls, triggers 160/96 of 255 (w98main pad_read), VKD
+  buffer full (KEYS ioctl r=2) -> bytes sent again first next poll. beta.116 /VER - "$VER: NUKED SB-EMU <ver> (<file>) $"
+  in SC55W*.EXE, SC55W.VXD, SC55MIDI.DRV, NUKEDJOY.VXD (common/nsbver.h from win98/VERSION via tools/mkver.sh); SC55W /VER
+  = message box + VERSIONS.TXT (also written at every start); BUGREP.BAT types WIN98\VERSIONS.TXT. beta.106/128 (logs):
+  SC55W.LOG "activity" line every 10 s while input changes (MIDI/FM/PCM counts, late, resyncs, MPU ignored, load %),
+  output switches with the old device's sent/lost bytes.
+- DIFFERENT APPROACH: USB MIDI (beta.108/114/122/128) = Windows' own USB MIDI driver, reached as a Windows MIDI out (above);
+  Ctrl+Alt+F11 = tray menu / /MOUT (no global hotkey into full-screen DOS boxes yet: VKD_Define_Hot_Key would do it);
+  SBTRACE/serial debug (106/127) = SC55W.LOG/TRC; HWTEST (104) = new top item.
+- NOT APPLICABLE (Windows owns the hardware or DOS-only tools, shared EXEs unchanged): 92/117 CD/uCDD, 93-95/97/98/112 USB
+  disks, 96/99-101/103/105 MIDPLAY (same DOS EXE), 102/110 USB HID/hosts, 111/113/115/118 MENU, 119/120 Audigy/SATA IRQ,
+  121/124 WCSET/VWC, 126 Audigy S/PDIF (the VxD never programs the card: use the Audigy's Windows mixer), 130 port-60h key
+  trap (the VxD never reads port 60h; keys go in through VKD_Force_Keys).
+- Tests: test/routetest.sh (native, w32shim): byte-exact midiOut (36/36), byte times within -1..+6 ms, replay order (reset
+  gap >= 200, vol/exp last, half SysEx resumed), silence 193 bytes, list skips NUKED, pad drift/rest/spike/glitch = 0 keys,
+  hysteresis. Native enginetest (OUTRATE=22050 HIGHNOTES=1 /VSCLPF:0|1): 9.3-11 kHz -6 dB, 0-8 kHz unchanged. Callgrind
+  Engine::render at 22050: beta.91-w98.7 4.399 G, w98.8 4.426 G (+0.6 %, low-pass on; /VSCLPF:0 = old cost; 0 at 44100).
+  QEMU store-w98qi-qemu noacpi + acpi (testrig/w98par/run.sh): SC55W /INSTALL, T1.BAT in a DOS box: MPUINT (AC -> FE 15, AD
+  -> FE 01; old build FE FF), MIDI bytes 28 = 10 UART + 8 intelligent + 10 UART (old: params as notes, extra burst in
+  REC.WAV), MIDITEST via "NUKED SB-EMU" + mapper, DOSTEST all expected, VERSIONS.TXT all w98.8, /MOUT:NEXT, /EXIT;
+  /UNINSTALL (SYSTEM.INI + AUTOEXEC clean, DRV removed at next boot). Soak (noacpi, 30 min, T4.BAT = DOSTEST + MPUINT UART
+  + intelligent in a loop): 200 rounds, all answers right, SC55W.LOG activity linear to the end (24 MIDI bytes/round). Duke 3D
+  attract soak in QEMU: the game stops after 12-15 min with w98.7 AND w98.8 - the VM's monitor power-off (~15 min) takes the
+  screen from the full-screen DOS game (the windowed T4 loop kept running; screen black at the same time) = rig, not a bug.
+  86Box w98-86box acpi (SB16 driver, PII-450), Duke 3D attract in a DOS box: old vs new SC55W2 identical (synth up 345/343 s,
+  MIDI 54574/54499 bytes, digital 31993/32881 frames, load saturated 4903/4810 % - a PII-450 cannot run the SC-55 in real
+  time in either build; the event ring overflows while it boots). MSWITCH.EXE /MOUT:NEXT every 20 s without music: synth ->
+  External MIDI Port -> FM -> synth x4, each external leg "sent 288 bytes, lost 0". With Duke's music on 86Box's "External
+  MIDI Port" SC55W starved (activity every 40-100 s): the MPU driver busy-waits per byte and the PII-450 is already 3x short;
+  the MIDI out thread is now ABOVE_NORMAL (was TIME_CRITICAL) and signals only an empty ring. Real check = P5PE-VM + Uno.
+- Rig notes: QEMU Win98 VMs have no wave driver (SC55W "No sound output" renders slower than real time: use the SC55W.LOG
+  activity counts, not REC.WAV timing). 86Box SB16 driver owns 220/330/388: ours /A:240 /I:7 /D:3 /H:7 /P:300 /OPL:0
+  (testrig/w98par/r86.sh). Duke CFG in a DOS box: ScreenMode = 2 + [Comm Setup] UserPath/RTSName. Never 86Box and QEMU at
+  once on the 2-core box.
+- Toolchain: apt g++-mingw-w64-i686-win32 13.2 (mingw-w64 11.0.1, msvcrt default) works = build-gcc.sh not needed on Ubuntu
+  24.04 (chkimp2: only GetModuleHandleW/LoadLibraryW W-STUB); Open Watcom snapshot + JWasm from github; munt d885a95.
+- Test downloads: /tmp/dl/ow (open-watcom-v2 Current-build ow-snapshot.tar.xz), jwasm-src (Baron-von-Riedesel/JWasm), munt.
+Zip = beta.130 zip + FILES\WIN98\{SC55W.EXE, SC55WM.EXE, SC55W2.EXE, SC55W.VXD, SC55MIDI.DRV, JOY\NUKEDJOY.VXD, SOURCE.ZIP,
+README98.TXT}, README98.TXT, README.TXT, HWTEST.TXT, FILES\SC55\BUGREP.BAT.
+NEXT: hardware results (HWTEST top item); global Ctrl+Alt+F11 via VKD_Define_Hot_Key; SB16 emulation options parity.
+
 ## Docs (2026-11-15): MT-32 / CM-32L ROMs from 86box/roms
 - README "Stuff you bring yourself" + wiki Synths (priavte wiki/src) point to github.com/86box/roms (sound/mt32, mt32_new, cm32l, cm32ln), repo link only. Finders (sbemu/vmpu_mt32.cpp, win98/helper/romscan.cpp) identify by content (Munt ROMInfo), flat folder: those names work, no code change. mt32 and mt32_new share file names (one per flat folder). SC-55 ROMs not in that set. Live wiki page not reposted yet (browser step).
 
