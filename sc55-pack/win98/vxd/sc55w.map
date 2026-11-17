@@ -1,7 +1,7 @@
-Open Watcom Linker Version 2.0 beta Nov 16 2026 07:11:57 (64-bit)
+Open Watcom Linker Version 2.0 beta Nov 17 2026 08:28:04 (64-bit)
 Copyright (c) 2002-2026 The Open Watcom Contributors. All Rights Reserved.
 Portions Copyright (c) 1985-2002 Sybase, Inc. All Rights Reserved.
-Created on:       26/11/17 10:53:44
+Created on:       26/11/17 12:56:58
 Executable Image: SC55W.VXD
 creating a Windows VxD dynamic link library
 
@@ -26,10 +26,10 @@ Segment                Class          Group          Address         Size
 
 _LDATA                 LCODE          AUTO           0001:00000000   0000008c
 _LTEXT                 LCODE          AUTO           0001:0000008c   00000635
-_TEXT                  CODE           AUTO           0001:000006c4   00004dc5
+_TEXT                  CODE           AUTO           0001:000006c4   00004da5
 _DATA                  DATA           DGROUP         0002:00000000   0000000c
 CONST                  DATA           DGROUP         0002:0000000c   000008be
-CONST2                 DATA           DGROUP         0002:000008cc   00000181
+CONST2                 DATA           DGROUP         0002:000008cc   00000182
 _BSS                   BSS            DGROUP         0002:00000a50   00001623
 
 
@@ -97,18 +97,18 @@ Module: sbcore.obj(sbcore.obj)
 0001:00001ff0  _sc_dma_changed
 0001:00002cbb  _sc_int15
 0001:00002e16  _sc_in
-0001:00002fd5  _sc_out
-0001:00003b77  _sc_dbg_capture
-0001:00003c07  _sc_dbg_timer
-0001:0000470c  _sc_vm_gone
-0001:0000472e  _sc_vm_msg
-0001:00004773  _sc_dyn_init
-0001:00004a7a  _sc_int21
-0001:0000501b  _sc_ioctl
-0001:0000539f  _sc_api_midi
-0001:000053b4  _sc_api_volume
-0001:000053e9  _sc_exit
-0001:0000545a  _sc_api_open
+0001:00003004  _sc_out
+0001:00003bb4  _sc_dbg_capture
+0001:00003bd9  _sc_dbg_timer
+0001:000046ec  _sc_vm_gone
+0001:0000470e  _sc_vm_msg
+0001:00004753  _sc_dyn_init
+0001:00004a5a  _sc_int21
+0001:00004ffb  _sc_ioctl
+0001:0000537f  _sc_api_midi
+0001:00005394  _sc_api_volume
+0001:000053c9  _sc_exit
+0001:0000543a  _sc_api_open
 
 
                         +-----------------------+
@@ -116,5 +116,5 @@ Module: sbcore.obj(sbcore.obj)
                         +-----------------------+
 
 Stack size:  0000 (0.)
-Memory size:  74fc (29948.)
-Link time: 00:00.51
+Memory size:  74dc (29916.)
+Link time: 00:00.60

@@ -1,3 +1,27 @@
+## beta.130-w98.10 (2026-11-17, Win98 session): Windows 98 debug link free when on (RELEASED, tag v1.0.0-beta.130-w98.10-usb)
+Same task as w98.9 (SC55W /DBG serial link), run in a second chat in parallel; w98.9 landed first, so this one ships what it
+found on top of it:
+- Cost with the link ON: w98.9's IO_Stub called sc_dbg_capture() for every trapped byte while the link was on (port counts
+  for the S line) = +7 % per trapped access at level 1. Now sc_in/sc_out count with one add each (link on or off,
+  vxd/sbcore.c c_sb/c_ack/c_opl/c_mpu/c_joy) and sc_dbg_cap = 1 only at level 3 (vxd/dbg98.c; sc_dbg_capture = capture
+  only). 86Box PII-450 cpu86.sh (8M trapped INs, DSP 24E x3 / MPU 301 x3, 55 ms ticks): w98.9 off 147x6, on 155 155 155
+  158 158 158; w98.10 off 145 145 145 148 148 148, on 144 144 144 147 147 147 (= off). dbgtest.c: level 1 = no capture
+  call, level 3 = capture call.
+- Rigs: w98dbg/run.sh plays with Media Player 6.4 (MPLAYER2: old MPLAYER.EXE stops on a "settings changed" box in a
+  fresh VM), version-agnostic VxD line, new check "S lines count trapped ports" (sb=[1-9]); QEMU acpi main/hang/fault PASS
+  (w98.10 main + the same tree's hang/fault before the counter move). New testrig/w98dbg/r86dbg.sh: 86Box P3B-F PII-450,
+  COM1 = 86Box "pipe" char device on a socat pty pair (write() per byte: a killed VM loses nothing, unlike "file"),
+  Duke 3D attract in a DOS box (start, runs DUKE3D, SB + DMA, MPU UART), S lines, then SC55W2 /DBG:HANG while Duke plays:
+  "!" line last, VM frozen = PASS (w98.9 code). Media Player there played to the SB16 driver (hand-made NUKED MIDI device
+  registration not enough; QEMU covers it after SC55W /INSTALL). CHOICE /T max 99 s (r86dbg splits waits). 86Box on a
+  fresh box needs apt librtmidi6. Kill the rig SCRIPT before a rerun (a stale loop stopped the next run's VM).
+- NUKEDJOY.VXD rebuilt (w98.9 shipped a w98.8-tagged one: /VER showed it).
+- Wiki: priavte wiki/post/mux-w98.10.json (replaces mux-w98.9.json: Changelog w98.9 + w98.10 rows, Home newest version,
+  FAQ/Tools/Troubleshooting debug-link lines) still to post from a browser.
+Zip = w98.9 zip + FILES\WIN98\{SC55W.EXE, SC55WM.EXE, SC55W2.EXE, SC55W.VXD, SC55MIDI.DRV, JOY\NUKEDJOY.VXD, SOURCE.ZIP,
+README98.TXT}, README98.TXT, README.TXT, HWTEST.TXT, FILES\SC55\{DBGLOG.PY, DBGLOG.TXT, BUGREP.BAT}.
+NEXT: HWTEST top item (null-modem D810/P5PE-VM -> main PC, link on all the time is now free); post the wiki job.
+
 ## beta.130-w98.9 (2026-11-17, Win98 session): serial debug link in Windows 98 (SC55W /DBG, = DOS SC55 /DBG) (RELEASED, tag v1.0.0-beta.130-w98.9-usb)
 User: SC55W /DBG:COM1|COM2[:level] and Settings > Debug send the DOS /DBG line format (levels 1-3) plus Windows events; the
 VxD writes the COM port itself from ring 0, polled, claimed from Windows, refused when Windows uses it; helper lines go through

@@ -964,11 +964,13 @@ u32 __cdecl sc_in(u32 vm, u32 port)
 {
     u32 off;
     if ((trapped & ST_OK_JOY) && port == joy_port) {
+        c_joy++;                                      /* debug link S-line counts: one add, link on or off */
         if (vm == sys_vm && !(cfg.joy & 8)) return vxd_port_in(port);
         return joy_read();
     }
     if ((trapped & ST_OK_SB) && port >= cfg.sb_port && port < (u32)cfg.sb_port + 16) {
         off = port - cfg.sb_port;
+        c_sb++;
         switch (off) {
         case 0x0: case 0x2: case 0x8: return cfg.opl ? opl_read_status() : 0xFF;
         case 0x1: case 0x3: case 0x9: return 0xFF;
@@ -977,15 +979,17 @@ u32 __cdecl sc_in(u32 vm, u32 port)
         case 0x6: return 0xFF;
         case 0xA: return dsp_read_data();
         case 0xC: dsp.ws = (u8)(dsp.ws + 0x80); return (u8)(dsp.ws | 0x7F);
-        case 0xE: ack_irq(0); return (u8)(dsp.outp < dsp.outn ? 0xFF : 0x7F);
-        case 0xF: ack_irq(1); return 0xFF;
+        case 0xE: c_ack++; ack_irq(0); return (u8)(dsp.outp < dsp.outn ? 0xFF : 0x7F);
+        case 0xF: c_ack++; ack_irq(1); return 0xFF;
         }
         return 0xFF;
     }
     if ((trapped & ST_OK_OPL) && port >= 0x388 && port <= 0x38B) {
+        c_opl++;
         return (port == 0x388) ? opl_read_status() : 0xFF;
     }
     if ((trapped & ST_OK_MPU) && (port == cfg.mpu_port || port == (u32)cfg.mpu_port + 1)) {
+        c_mpu++;
         return mpu_read(port);
     }
     (void)vm;
@@ -997,12 +1001,14 @@ void __cdecl sc_out(u32 vm, u32 port, u32 val)
     u8 v = (u8)val;
     u32 off;
     if ((trapped & ST_OK_JOY) && port == joy_port) {
+        c_joy++;
         if (vm == sys_vm && !(cfg.joy & 8)) vxd_port_out(port, val);
         else joy_t0 = vxd_time_us();
         return;
     }
     if ((trapped & ST_OK_SB) && port >= cfg.sb_port && port < (u32)cfg.sb_port + 16) {
         off = port - cfg.sb_port;
+        c_sb++;
         switch (off) {
         case 0x0: case 0x8: if (cfg.opl) opl_index[0] = v; return;
         case 0x1: case 0x9: if (cfg.opl) opl_write_data(0, v); return;
@@ -1022,12 +1028,13 @@ void __cdecl sc_out(u32 vm, u32 port, u32 val)
     }
     if ((trapped & ST_OK_OPL) && port >= 0x388 && port <= 0x38B) {
         int bank = (port >= 0x38A) ? 1 : 0;
+        c_opl++;
         if (port & 1) opl_write_data(bank, v);
         else opl_index[bank] = v;
         return;
     }
     if ((trapped & ST_OK_MPU) && (port == cfg.mpu_port || port == (u32)cfg.mpu_port + 1)) {
-        last_mpu_vm = vm;
+        last_mpu_vm = vm; c_mpu++;
         mpu_write(port, v);
         return;
     }

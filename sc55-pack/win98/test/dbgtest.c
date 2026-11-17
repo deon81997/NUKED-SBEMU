@@ -117,9 +117,8 @@ int main(void)
     check(lines_matching("VXD I DOS box start vm=C2000000$") == 1, "DOS box line");
 
     cfg.sb_port = 0x220; cfg.mpu_port = 0x330;
-    { u32 sb = c_sb, ack = c_ack, mpu = c_mpu, opl = c_opl, joy = c_joy;
-      sc_dbg_capture(0xFF, 0x22E, 0); sc_dbg_capture(0x10, 0x22C, 1); sc_dbg_capture(0x80, 0x331, 0); sc_dbg_capture(0, 0x389, 1); sc_dbg_capture(0, 0x201, 1);
-      check(c_sb - sb == 2 && c_ack - ack == 1 && c_mpu - mpu == 1 && c_opl - opl == 1 && c_joy - joy == 1, "port counts from the IO stub hook"); }
+    /* w98.10: the S-line port counts are one add in sc_in/sc_out; the IO stub calls sc_dbg_capture only at level 3 */
+    check(dbg_level == 1 && sc_dbg_cap == 0, "level 1: no capture call per trapped access");
 
     /* UART stuck (cable / flow): the ring fills, lines are dropped and counted, nothing overruns */
     uart_ready = 0;
@@ -130,6 +129,7 @@ int main(void)
 
     /* level 3: capture + dump */
     r = dbg_open(1, 0, 3, msg, sizeof msg);
+    check(sc_dbg_cap == 1, "level 3: the IO stub calls the capture");
     for (i = 0; i < 5000; i++) cap_add(0x220 + (i & 15), i & 0xFF, i & 1);
     wire_n = 0;
     r = dbg_cmd(DBGCMD_DUMP, msg, sizeof msg);

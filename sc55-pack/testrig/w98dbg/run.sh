@@ -19,7 +19,7 @@ w() { echo "CHOICE /T:Y,$1 /C:Y >NUL"; }
   echo 'START /W D:\T\COMHOLD.EXE COM1 0 D:\R\C1.TXT'
   echo 'D:\T\TRAPB.COM >> D:\R\TB.TXT'; echo 'D:\T\TRAPB.COM 331 >> D:\R\TB.TXT'
   echo 'D:\T\DOSTEST.EXE'; echo 'D:\T\MPUINT.EXE'
-  echo 'START /W D:\T\MIDITEST.EXE'; echo 'START /W C:\WINDOWS\MPLAYER.EXE /PLAY /CLOSE D:\T\TEST.MID'; w 5
+  echo 'START /W D:\T\MIDITEST.EXE'; echo 'START /W C:\PROGRA~1\WINDOW~1\MPLAYER2.EXE /play /close D:\T\TEST.MID'; w 5
   echo "START /W $S /DBG:COM1:3"; w 3; echo 'D:\T\TRAPB.COM >> D:\R\TB.TXT'
   echo "START /W $S /DBG:DUMP"; w 40
   echo "START /W $S /DBG:0"; w 3
@@ -46,7 +46,7 @@ for c in $CASES; do
          echo "main: $(grep -vc '^#' $L/main.log) lines"; r=$W/r-$VM-TD1
          for f in SC55/WIN98/SC55W.LOG DOSTEST.LOG MPUINT.LOG MIDITEST.LOG; do mcopy -o -n -i $I ::/$f $r/ 2>/dev/null; done
          chk main "link line (as DOS, port claimed)" "W98  [0-9.]+ VXD I Serial debug link: COM1 \(3F8\), 115200 baud, level 1, port claimed from Windows"
-         chk main "VxD load line" "VXD I VxD loaded: NUKED SB-EMU 1.0.0-beta.130-w98.9-usb"
+         chk main "VxD load line" "VXD I VxD loaded: NUKED SB-EMU 1.0.0-beta.130-w98.[0-9]+-usb"
          chk main "attach + traps" "VXD I port traps: SB ok, OPL ok, MPU ok"
          chk main "DOS box start/stop" "VXD I DOS box (start|stop) vm=" 2
          chk main "DOS box programs" "VXD I vm=[0-9A-F]{8} runs .*(TRAPB|DOSTEST|MPUINT)" 3
@@ -56,6 +56,7 @@ for c in $CASES; do
          chk main "VxD stats once a second" "VXD S vm=[0-9A-F]{8} sb=[0-9]+ mpu=" 20
          chk main "helper stats" "SC55W S load=.* midi=.* late=.* early=.* resync=" 10
          chk main "helper log lines (synth start)" "SC55W [IE] (synth:|start-up complete)" 1
+         chk main "S lines count trapped ports (w98.10: counted in sc_in/sc_out)" "VXD S vm=[0-9A-F]{8} sb=[1-9][0-9]* mpu=" 1
          chk main "level 3 capture" "VXD I capture: [0-9]+ port accesses"
          chk main "capture records" "W98  T [0-9]+ [io] [0-9A-F]{3} [0-9A-F]{2}$" 1000
          chk main "capture end" "VXD I capture end"
