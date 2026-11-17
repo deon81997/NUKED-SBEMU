@@ -48,7 +48,7 @@ typedef int32_t  s32;
 #define DBGCMD_STATUS 1
 #define DBGCMD_DUMP   2             /* level 3: send the port capture (T lines) */
 #define DBGCMD_HANG   3             /* TEST ONLY: one "!" line, then interrupts off for good */
-#define DBGCMD_FAULT  4             /* TEST ONLY: a ring-0 general protection fault (blue screen) */
+#define DBGCMD_FAULT  4             /* TEST ONLY: a ring-0 invalid opcode fault (blue screen) */
 
 /* the program list of the DOS box that has the keyboard (IOCTL_SC55W_FOCUS) */
 #define SC55W_NPROG 4

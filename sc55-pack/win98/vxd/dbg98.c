@@ -9,9 +9,9 @@
  *
  * The VxD writes the UART itself, from ring 0, polled (no UART interrupt): a 16 KB ring, filled by whoever
  * makes a line, emptied one FIFO load (16 bytes) at a time by the maker and by an async time-out that runs at
- * interrupt time even while Windows is stuck in a critical section. E and ! lines wait until they are on the
- * wire. Ring-0 faults 06h/0Dh (the blue-screen kind) send a ! line and empty the ring before Windows shows its
- * screen. The port is claimed from Windows with VCOMM_OpenComm, so Windows programs, VCOMM clients and DOS
+ * interrupt time even while Windows is stuck in a critical section, and goes on after a driver fault (tested:
+ * SC55W /DBG:FAULT). E and ! lines wait until they are on the wire. (Hook_VMM_Fault answers carry for this
+ * dynamic VxD in Windows 98, so there is no extra line before a blue screen.) The port is claimed from Windows with VCOMM_OpenComm, so Windows programs, VCOMM clients and DOS
  * boxes cannot use it while the link runs; a port Windows already has open is refused (status 1 + message).
  * Off (no /DBG) = no line is ever built: every hook tests dbg_level first.
  */
@@ -23,7 +23,6 @@ extern u32  __cdecl vxd_vcomm_open(const char *name, u32 vmid);
 extern void __cdecl vxd_vcomm_close(u32 h);
 extern void __cdecl vxd_hang(void);
 extern void __cdecl vxd_fault_test(void);
-extern u32  __cdecl vxd_fault_hook(u32 fault, u8 *stub);
 extern void * __cdecl vxd_heap_alloc(u32 n);
 
 u32 irq_save(void);
@@ -34,7 +33,7 @@ void irq_restore(u32 f);
 #define DBG_RING 16384u
 #define CAP_N    4096u
 static u32  dbg_level, dbg_base, dbg_baud, dbg_fifo, dbg_port, dbg_vcomm, dbg_owned;
-static u32  dbg_head, dbg_tail, dbg_lost, dbg_sent, dbg_next_s, dbg_faults;
+static u32  dbg_head, dbg_tail, dbg_lost, dbg_sent, dbg_next_s;
 static char dbg_ring[DBG_RING];
 static u32  load_ms;                      /* when Windows loaded the VxD */
 static int  dbg_async;                    /* in the async time-out: never wait for the UART */
@@ -147,43 +146,6 @@ static void dbg(char kind, const char *f, ...)
     dbg_raw(0, "VXD", kind, t);
 }
 
-/* ---- ring-0 faults: a stub in the VMM heap (it must outlive an unloaded VxD: Unhook_VMM_Fault wants
-   DDK hook-proc headers), live while dbg_stub[40] = 1. Bytes:
-     cmp byte [stub+40],0 / je chain / pushad / push n / mov eax, sc_dbg_fault / call eax / add esp,4 / popad
-     chain: cmp dword [stub+44],0 / jne +1 / ret / jmp [stub+44] */
-static u8 *fault_stub[2];
-void __cdecl sc_dbg_fault(u32 no)
-{
-    if (!dbg_level || !dbg_base || dbg_faults >= 4) return;
-    dbg_faults++;
-    dbg_raw(1, "VXD", '!', no == 0x0D ? "ring-0 fault 0Dh (general protection) in a VxD: Windows shows a blue screen now"
-                                      : "ring-0 fault 06h (invalid opcode) in a VxD: Windows shows a blue screen now");
-}
-static void put32(u8 *p, u32 v) { p[0] = (u8)v; p[1] = (u8)(v >> 8); p[2] = (u8)(v >> 16); p[3] = (u8)(v >> 24); }
-static void fault_hooks(int on)
-{
-    static const u32 nos[2] = {0x0D, 0x06};
-    int i;
-    for (i = 0; i < 2; i++) {
-        u8 *p = fault_stub[i];
-        if (!on) { if (p) p[40] = 0; continue; }
-        if (p) { p[40] = 1; continue; }
-        p = (u8 *)vxd_heap_alloc(48);
-        if (!p) continue;
-        p[0] = 0x80; p[1] = 0x3D; put32(p + 2, (u32)(p + 40)); p[6] = 0x00;
-        p[7] = 0x74; p[8] = 15;
-        p[9] = 0x60; p[10] = 0x6A; p[11] = (u8)nos[i];
-        p[12] = 0xB8; put32(p + 13, (u32)sc_dbg_fault);
-        p[17] = 0xFF; p[18] = 0xD0; p[19] = 0x83; p[20] = 0xC4; p[21] = 0x04; p[22] = 0x61; p[23] = 0x90;
-        p[24] = 0x83; p[25] = 0x3D; put32(p + 26, (u32)(p + 44)); p[30] = 0x00;
-        p[31] = 0x75; p[32] = 0x01; p[33] = 0xC3;
-        p[34] = 0xFF; p[35] = 0x25; put32(p + 36, (u32)(p + 44));
-        p[40] = 1;
-        if (!vxd_fault_hook(nos[i], p)) { p[40] = 0; continue; }     /* kept: VMM may still hold it */
-        fault_stub[i] = p;
-    }
-}
-
 /* ---- stats (S) once a second, per-frame (F, level 2), capture dump (T, level 3) ---- */
 static void dbg_stats(void)
 {
@@ -256,7 +218,6 @@ void __cdecl sc_dbg_timer(void)
 static void dbg_close(void)
 {
     if (dbg_base && dbg_level) { dbg_raw(1, "VXD", 'I', "serial debug link off"); }
-    fault_hooks(0);
     dbg_level = 0;
     dbg_base = 0;
     if (dbg_owned) { vxd_vcomm_close(dbg_vcomm); dbg_owned = 0; dbg_vcomm = 0; }
@@ -317,7 +278,6 @@ static u32 dbg_open(u32 port, u32 baud, u32 level, char *msg, u32 msgmax)
         return 2;
     }
     dbg_head = dbg_tail = dbg_lost = dbg_sent = 0;
-    dbg_faults = 0;
     dbg_base = base; dbg_port = port; dbg_level = level;
     if (level == 3 && !cap) cap = vxd_heap_alloc(CAP_N * sizeof *cap);
     s_last.sb = c_sb; s_last.mpu = c_mpu; s_last.opl = c_opl; s_last.joy = c_joy; s_last.virq = c_virq;
@@ -325,7 +285,6 @@ static u32 dbg_open(u32 port, u32 baud, u32 level, char *msg, u32 msgmax)
     s_last.evlost = sh ? sh->ev_overflow : 0; s_last.pcmlost = sh ? sh->pcm_overflow : 0;
     f_last = s_last;
     dbg_next_s = dbg_now() + 1000;
-    fault_hooks(1);
     dbg('I', "Serial debug link: %s (%X), %u baud, level %u, port %s", name, base, dbg_baud, level, how);
     {
         char v[64];
@@ -387,7 +346,7 @@ static u32 dbg_cmd(u32 c, char *msg, u32 msgmax)
         return 0;
     case DBGCMD_FAULT:
         if (!dbg_base) { fmt(msg, (int)msgmax, "the fault test needs the link on"); return 1; }
-        dbg('I', "fault test (SC55W /DBG:FAULT): a general protection fault in SC55W.VXD now");
+        dbg('I', "fault test (SC55W /DBG:FAULT): an invalid opcode (06h) in SC55W.VXD now - the S lines must go on");
         vxd_fault_test();
         fmt(msg, (int)msgmax, "fault test: Windows went on");
         return 0;

@@ -36,7 +36,6 @@ PAGEMAPGLOBAL               equ 40000000h
 VCOMM_DEVICE_ID             equ 002Bh
 @_VCOMM_OpenComm            equ 0004h
 @_VCOMM_CloseComm           equ 0009h
-@Hook_VMM_Fault             equ 0081h
 
 ; C core
 extern _sc_in:near, _sc_out:near, _sc_tick:near, _sc_dma_changed:near
@@ -50,7 +49,7 @@ public _vxd_dma_get, _vxd_dma_set, _vxd_timer_arm
 public _vxd_install_io, _vxd_remove_io, _vxd_virt_irq, _vxd_unvirt_irq
 public _vxd_virt_dma, _vxd_unvirt_dma, _vxd_map_block, _vxd_unmap_block
 public _vxd_min_period
-public _vxd_time_ms, _vxd_dbg_arm, _vxd_vcomm_open, _vxd_vcomm_close, _vxd_hang, _vxd_fault_hook, _vxd_heap_alloc, _vxd_fault_test
+public _vxd_time_ms, _vxd_dbg_arm, _vxd_vcomm_open, _vxd_vcomm_close, _vxd_hang, _vxd_fault_test, _vxd_heap_alloc
 public _vxd_sys_vm, _vxd_port_in, _vxd_port_out, _vxd_hook_int15
 public _vxd_hook_int21, _vxd_kbd_owner, _vxd_force_keys
 public _vxd_nest_begin, _vxd_nest_int21, _vxd_nest_end
@@ -885,36 +884,13 @@ _vxd_hang proc near
 @@:     jmp     @B
 _vxd_hang endp
 
-; void vxd_fault_test(void): TEST ONLY (SC55W /DBG:FAULT) - load a selector past the GDT: #GP in ring 0
+; void vxd_fault_test(void): TEST ONLY (SC55W /DBG:FAULT) - UD2: invalid opcode fault in ring 0
 _vxd_fault_test proc near
-        push    es
-        mov     eax, 0FFF8h
-        mov     es, ax
-        pop     es
+        db      0Fh, 0Bh                ; ud2: fault 06h in ring 0
         ret
 _vxd_fault_test endp
 
-; u32 vxd_fault_hook(u32 fault, void *stub): Hook_VMM_Fault; returns the previous handler (0 = failed).
-; The stub lives in the heap (it outlives this VxD: a dead stub only jumps on), sbcore.c writes it.
-_vxd_fault_hook proc near
-        push    esi
-        pushfd
-        cli
-        mov     eax, [esp+12]
-        mov     esi, [esp+16]
-        int 20h
-        dd (VMM_DEVICE_ID shl 16) + @Hook_VMM_Fault
-        mov     eax, esi
-        jnc     @F
-        xor     eax, eax
-@@:     mov     ecx, [esp+16]
-        mov     [ecx+44], eax           ; stub's "previous handler" dword (see sbcore.c fault_stub)
-        popfd
-        pop     esi
-        ret
-_vxd_fault_hook endp
-
-; void *vxd_heap_alloc(u32 bytes): locked VMM heap (zeroed)
+; void *vxd_heap_alloc(u32 bytes): locked VMM heap (zeroed) - the level 3 capture
 _vxd_heap_alloc proc near
         push    1                       ; HEAPZEROINIT
         push    dword ptr [esp+8]

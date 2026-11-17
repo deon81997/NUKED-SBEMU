@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <regex.h>
-#include <sys/mman.h>
 #include "../common/sc55wif.h"
 
 #define BUILD_ID 4242
@@ -47,10 +46,8 @@ void vxd_dbg_arm(u32 ms) { (void)ms; armed = 1; }
 u32 vxd_vcomm_open(const char *n, u32 vm) { (void)vm; strcpy(vcomm_name, n); return vcomm_ret; }
 void vxd_vcomm_close(u32 h) { (void)h; vcomm_closed++; }
 void vxd_hang(void) { puts("hang called"); }
-static u32 prev_calls;
-static void prev_handler(void) { prev_calls++; }
-u32 vxd_fault_hook(u32 fault, u8 *stub) { (void)fault; u32 p = (u32)prev_handler; memcpy(stub + 44, &p, 4); return p; }
-void *vxd_heap_alloc(u32 n) { void *p = mmap(NULL, n, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS | MAP_32BIT, -1, 0); memset(p, 0, n); return p; }
+void vxd_fault_test(void) {}
+void *vxd_heap_alloc(u32 n) { return calloc(1, n); }
 u32 irq_save(void) { return 0; }
 void irq_restore(u32 f) { (void)f; }
 
@@ -135,15 +132,8 @@ int main(void)
     check(r == 0 && lines_matching("^T [0-9]+ [io] 22[0-9A-F] [0-9A-F]{2}$") == 4096 && lines_matching("VXD I capture end$") == 1,
           "level 3: 4096 T records + capture end");
 
-    /* the fault stub, executed */
-    wire_n = 0; prev_calls = 0;
-    ((void (*)(void))fault_stub[0])();
-    drain();
-    check(prev_calls == 1 && lines_matching("VXD ! ring-0 fault 0Dh") == 1, "fault stub: ! line, then the previous handler");
     dbg_close();
-    wire_n = 0;
-    ((void (*)(void))fault_stub[0])();
-    check(prev_calls == 2 && wire_n == 0 && vcomm_closed == 1, "after close: stub only chains, VCOMM port closed");
+    check(vcomm_closed == 1, "after close: VCOMM port closed");
 
     printf("dbgtest: %s\n", fails ? "FAIL" : "PASS");
     return fails != 0;

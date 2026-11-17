@@ -129,8 +129,7 @@ Run it again while SC55W runs to change it: /DBG:0 = off.
   Level 3: SC55W /DBG:DUMP (or Settings > Debug > Send capture) sends the
            last 4096 trapped port accesses as T lines.
 The driver writes the serial port itself (polled, no interrupt), also when
-Windows hangs; before a blue screen from a driver fault it sends a "!"
-line. Windows cannot use the port while the link is on (it is claimed from
+Windows hangs (interrupts on) and after a driver crashes. Windows cannot use the port while the link is on (it is claimed from
 Windows): a port Windows already uses (serial mouse, modem, a program, a
 DOS box) is refused with a message - free it or use the other COM port.
 Tests: SC55W /DBG:HANG stops Windows for good after one "!" line (it must
