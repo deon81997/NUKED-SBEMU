@@ -3,7 +3,8 @@
 # run.sh ZIP [VM] [CASES] - Windows 98 serial debug link (w98.9: SC55W /DBG, SC55W.VXD writes COM1 from ring 0) in the
 # QEMU Win98 QuickInstall VM (store-w98qi-qemu, default acpi): COM1 -> TCP -> pack/FILES/SC55/DBGLOG.PY.
 #   main   SC55W /INSTALL, then TD1.BAT in a DOS box: link on (forwarded to the running SC55W), COMHOLD cannot open
-#          COM1 (claimed), TRAPB/DOSTEST/MPUINT = DOS box sound, MIDITEST + Media Player = Windows MIDI device open/close,
+#          COM1 (claimed), TRAPB/DOSTEST/MPUINT = DOS box sound, MIDITEST + Media Player 6.4 (MPLAYER2; MPLAYER.EXE stops on a
+#          'settings changed' box) = Windows MIDI device open/close,
 #          level 3 + /DBG:DUMP capture, /DBG:0, then COMHOLD holds COM1 and /DBG:COM1 must be refused (message + log)
 #   hang   TD2.BAT: /DBG:HANG - the "!" line must be the last one, nothing for 60 s after it, the VM stays frozen
 #   fault  TD3.BAT: /DBG:FAULT - a ring-0 invalid opcode (UD2) in the VxD: the link must go on (10+ S lines after it)
@@ -19,7 +20,7 @@ w() { echo "CHOICE /T:Y,$1 /C:Y >NUL"; }
   echo 'START /W D:\T\COMHOLD.EXE COM1 0 D:\R\C1.TXT'
   echo 'D:\T\TRAPB.COM >> D:\R\TB.TXT'; echo 'D:\T\TRAPB.COM 331 >> D:\R\TB.TXT'
   echo 'D:\T\DOSTEST.EXE'; echo 'D:\T\MPUINT.EXE'
-  echo 'START /W D:\T\MIDITEST.EXE'; echo 'START /W C:\WINDOWS\MPLAYER.EXE /PLAY /CLOSE D:\T\TEST.MID'; w 5
+  echo 'START /W D:\T\MIDITEST.EXE'; echo 'START /W C:\PROGRA~1\WINDOW~1\MPLAYER2.EXE /play /close D:\T\TEST.MID'; w 5
   echo "START /W $S /DBG:COM1:3"; w 3; echo 'D:\T\TRAPB.COM >> D:\R\TB.TXT'
   echo "START /W $S /DBG:DUMP"; w 40
   echo "START /W $S /DBG:0"; w 3
