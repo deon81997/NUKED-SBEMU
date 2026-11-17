@@ -8,7 +8,7 @@
 </table>
 
 <picture><img src="docs/90s/icon-book.gif" alt="book"></picture> <b><a href="https://github.com/deon81997/NUKED-SBEMU/wiki">~ Read the WIKI!! ~</a></b> <sub>(quick start, every switch, troubleshooting)</sub> <picture><img src="docs/90s/new.gif" alt="NEW!"></picture><br>
-<picture><img src="docs/90s/btn-awe32.gif" alt="AWE32"></picture> <b><a href="https://github.com/deon81997/NUKED-SBEMU-AWE">~ AWE32 / AWE64 edition ~</a></b> <sub>(the same pack plus an emulated EMU8000 wavetable at 620h)</sub>
+<picture><img src="docs/90s/btn-awe32.gif" alt="AWE32"></picture> <b>Which one??</b> <a href="https://github.com/deon81997/NUKED-SBEMU">NUKED-SBEMU</a> = the main line (SC-55 / MT-32 / General MIDI pack) &middot; <a href="https://github.com/deon81997/NUKED-SBEMU-AWE">NUKED-SBEMU-AWE</a> = the AWE32 / AWE64 line (the same pack plus an emulated EMU8000 at 620h)
 
 <table>
 <tr>
@@ -494,6 +494,7 @@ something breaks please [sign my guestbook](#-sign-my-guestbook-) and tell me!
 - <picture><img src="docs/90s/ball-gold.gif" width="14" alt="o"></picture> **Joysticks**: any pad Windows knows plays DOS games in DOS boxes; *Set up...* adds a NUKED SB-EMU Game Port and Joystick so Windows games get it too, even without a game port on your sound card
 - <picture><img src="docs/90s/ball-red.gif" width="14" alt="o"></picture> **Pad keys** per game in DOS boxes, and an Xbox 360 pad driver for Windows 98 (unofficial, with English install steps)
 - <picture><img src="docs/90s/ball-blue.gif" width="14" alt="o"></picture> Rests when nothing plays: about **0.25% CPU** while idle on a Pentium II
+- <picture><img src="docs/90s/ball-gold.gif" width="14" alt="o"></picture> **MIDI to** from the tray icon (or `SC55W /MOUT:USB`): send the music to the emulated synth or any Windows MIDI output (a USB MIDI cable to a real SC-55) while a game plays; MPU-401 intelligent mode, the SC-55 low-pass and the pad key filters as in DOS; `SC55W /VER` and `VERSIONS.TXT` show every Windows file's version (since beta.130-w98.8)
 - <picture><img src="docs/90s/ball-green.gif" width="14" alt="o"></picture> See [`README98.TXT`](sc55-pack/pack/README98.TXT)
 </details>
 
