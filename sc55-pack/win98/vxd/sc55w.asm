@@ -32,18 +32,25 @@ Destroy_VM_Msg              equ 000Ch
 @VDMAD_Set_Channel_Callbacks equ 001Fh
 VDMAD_Callbacks_ReadNotify  equ 0001h
 PAGEMAPGLOBAL               equ 40000000h
+; serial debug link (w98.9)
+VCOMM_DEVICE_ID             equ 002Bh
+@_VCOMM_OpenComm            equ 0004h
+@_VCOMM_CloseComm           equ 0009h
 
 ; C core
 extern _sc_in:near, _sc_out:near, _sc_tick:near, _sc_dma_changed:near
 extern _sc_eoi:near, _sc_ioctl:near, _sc_exit:near, _sc_api_midi:near
-extern _sc_int15:near, _sc_api_volume:near
+extern _sc_int15:near, _sc_api_volume:near, _sc_api_open:near
 extern _sc_int21:near, _sc_vm_gone:near
+extern _sc_vm_msg:near, _sc_dyn_init:near, _sc_dbg_timer:near, _sc_dbg_capture:near
+extern _sc_dbg_cap:dword
 
 public _vxd_time_us, _vxd_muldiv, _vxd_raise_irq, _vxd_lower_irq
 public _vxd_dma_get, _vxd_dma_set, _vxd_timer_arm
 public _vxd_install_io, _vxd_remove_io, _vxd_virt_irq, _vxd_unvirt_irq
 public _vxd_virt_dma, _vxd_unvirt_dma, _vxd_map_block, _vxd_unmap_block
 public _vxd_min_period
+public _vxd_time_ms, _vxd_dbg_arm, _vxd_vcomm_open, _vxd_vcomm_close, _vxd_hang, _vxd_fault_test, _vxd_heap_alloc
 public _vxd_sys_vm, _vxd_port_in, _vxd_port_out, _vxd_hook_int15
 public _vxd_hook_int21, _vxd_kbd_owner, _vxd_force_keys
 public _vxd_nest_begin, _vxd_nest_int21, _vxd_nest_end
@@ -62,6 +69,7 @@ dma_handle   dd 0, 0
 timer_handle dd 0
 period_on    dd 0
 map_pages    dd 0
+dbg_handle   dd 0
 
 _LDATA  ends
 
@@ -80,19 +88,34 @@ SC55W_Control proc near
         je      ctl_vm
         cmp     eax, Destroy_VM_Msg
         je      ctl_vm
+        cmp     eax, Sys_Dynamic_Device_Init
+        je      ctl_init
         clc
         ret
-ctl_vm:                                 ; forget a VM's program list (EBX = VM)
+ctl_init:                               ; load time for the debug link's clock
         pushad
+        call    _sc_dyn_init
+        popad
+        clc
+        ret
+ctl_vm:                                 ; DOS box made / gone (EBX = VM): program list, debug link
+        pushad
+        push    eax
         push    ebx
-        call    _sc_vm_gone
-        add     esp, 4
+        call    _sc_vm_msg
+        add     esp, 8
         popad
         clc
         ret
 ctl_exit:
         pushad
-        call    _sc_exit
+        xor     esi, esi
+        xchg    esi, dbg_handle
+        or      esi, esi
+        jz      @F
+        int 20h
+        dd (VMM_DEVICE_ID shl 16) + @Cancel_Time_Out
+@@:     call    _sc_exit
         xor     esi, esi
         xchg    esi, timer_handle
         or      esi, esi
@@ -147,6 +170,10 @@ PM_API proc near
         je      api_send
         cmp     eax, 2
         je      api_volume
+        cmp     eax, 3
+        je      api_open
+        cmp     eax, 4
+        je      api_close
         or      eax, eax
         jne     api_bad
         mov     word ptr [ebp+Client_EAX], 0100h
@@ -188,6 +215,17 @@ api_volume:                             ; AX=2: MIDI volume, DX = left, CX = rig
         call    _sc_api_volume
         add     esp, 4
         jmp     api_ok
+api_open:                               ; AX=3/4: MIDI device opened / closed, CX = clients open now
+        mov     edx, 1
+        jmp     @F
+api_close:
+        xor     edx, edx
+@@:     movzx   eax, word ptr [ebp+Client_ECX]
+        push    eax
+        push    edx
+        call    _sc_api_open
+        add     esp, 8
+        jmp     api_ok
 api_bad:
         or      dword ptr [ebp+Client_EFlags], 1
         ret
@@ -207,15 +245,41 @@ io_in:
         push    edx
         push    ebx
         call    _sc_in
+        cmp     _sc_dbg_cap, 0          ; debug link on: count (and at level 3 record) the access (dbg98.c)
+        jne     io_capin
         add     esp, 8
         ret
+io_capin:
+        mov     [esp], eax              ; sc_dbg_capture(value, port, 0); [esp+4] = port (EDX is gone)
+        push    0
+        push    dword ptr [esp+8]
+        push    eax
+        call    _sc_dbg_capture
+        add     esp, 12
+        pop     eax
+        add     esp, 4
+        ret
 io_out:
+        cmp     _sc_dbg_cap, 0
+        jne     io_capout
+io_out2:
         push    eax
         push    edx
         push    ebx
         call    _sc_out
         add     esp, 12
         ret
+io_capout:
+        push    eax
+        push    edx
+        push    1
+        push    edx
+        push    eax
+        call    _sc_dbg_capture
+        add     esp, 12
+        pop     edx
+        pop     eax
+        jmp     io_out2
 IO_Stub endp
 
 ;---------------------------------------------------------------------------
@@ -757,6 +821,111 @@ mp_off: cmp     period_on, 0
 mp_done:
         ret
 _vxd_min_period endp
+
+;---------------------------------------------------------------------------
+; serial debug link (w98.9)
+;---------------------------------------------------------------------------
+; u32 vxd_time_ms(void): VTD real time in milliseconds (64-bit ticks, no wrap for 49 days)
+_vxd_time_ms proc near
+        push    ebx
+        push    esi
+        push    edi
+        int 20h
+        dd (VTD_DEVICE_ID shl 16) + @VTD_Get_Real_Time
+        mov     ecx, eax
+        mov     eax, edx
+        mov     ebx, 1000
+        mul     ebx
+        mov     esi, eax
+        mov     edi, edx
+        mov     eax, ecx
+        mul     ebx
+        add     edx, esi
+        adc     edi, 0
+        mov     ebx, 1193182
+        push    eax
+        mov     ecx, edx
+        xor     edx, edx
+        mov     eax, edi
+        div     ebx
+        mov     eax, ecx
+        div     ebx
+        pop     eax
+        div     ebx
+        pop     edi
+        pop     esi
+        pop     ebx
+        ret
+_vxd_time_ms endp
+
+; async time-out (interrupt time, also inside critical sections): pump the UART
+Dbg_CB proc near
+        mov     dbg_handle, 0
+        pushad
+        call    _sc_dbg_timer
+        popad
+        ret
+Dbg_CB endp
+
+; void vxd_dbg_arm(u32 ms): one outstanding async time-out at most
+_vxd_dbg_arm proc near
+        pushfd
+        cli
+        cmp     dbg_handle, 0
+        jne     da_done
+        push    esi
+        mov     eax, [esp+12]
+        xor     edx, edx
+        mov     esi, offset Dbg_CB
+        int 20h
+        dd (VMM_DEVICE_ID shl 16) + @Set_Async_Time_Out
+        mov     dbg_handle, esi
+        pop     esi
+da_done:
+        popfd
+        ret
+_vxd_dbg_arm endp
+
+; u32 vxd_vcomm_open(const char *name, u32 vmid): port handle or IE_xxx (negative)
+_vxd_vcomm_open proc near
+        push    dword ptr [esp+8]
+        push    dword ptr [esp+8]
+        int 20h
+        dd (VCOMM_DEVICE_ID shl 16) + @_VCOMM_OpenComm
+        add     esp, 8
+        ret
+_vxd_vcomm_open endp
+
+; void vxd_vcomm_close(u32 handle)
+_vxd_vcomm_close proc near
+        push    dword ptr [esp+4]
+        int 20h
+        dd (VCOMM_DEVICE_ID shl 16) + @_VCOMM_CloseComm
+        add     esp, 4
+        ret
+_vxd_vcomm_close endp
+
+; void vxd_hang(void): TEST ONLY (SC55W /DBG:HANG) - interrupts off, stop here for good
+_vxd_hang proc near
+        cli
+@@:     jmp     @B
+_vxd_hang endp
+
+; void vxd_fault_test(void): TEST ONLY (SC55W /DBG:FAULT) - UD2: invalid opcode fault in ring 0
+_vxd_fault_test proc near
+        db      0Fh, 0Bh                ; ud2: fault 06h in ring 0
+        ret
+_vxd_fault_test endp
+
+; void *vxd_heap_alloc(u32 bytes): locked VMM heap (zeroed) - the level 3 capture
+_vxd_heap_alloc proc near
+        push    1                       ; HEAPZEROINIT
+        push    dword ptr [esp+8]
+        int 20h
+        dd (VMM_DEVICE_ID shl 16) + @_HeapAllocate
+        add     esp, 8
+        ret
+_vxd_heap_alloc endp
 
 _LTEXT  ends
         end

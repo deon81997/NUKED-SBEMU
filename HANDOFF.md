@@ -1,3 +1,44 @@
+## beta.130-w98.9 (2026-11-17, Win98 session): serial debug link in Windows 98 (SC55W /DBG, = DOS SC55 /DBG) (RELEASED, tag v1.0.0-beta.130-w98.9-usb)
+User: SC55W /DBG:COM1|COM2[:level] and Settings > Debug send the DOS /DBG line format (levels 1-3) plus Windows events; the
+VxD writes the COM port itself from ring 0, polled, claimed from Windows, refused when Windows uses it; helper lines go through
+the VxD; off = zero cost; DBGLOG.PY reads DOS and Windows captures and labels the side.
+- vxd/dbg98.c (#included by sbcore.c): 16 KB ring, dbg_pump = one FIFO load (16 B) when LSR THRE, by the line maker and by an
+  async time-out (Set_Async_Time_Out, interrupt time: 2 ms while the ring has data, else 250 ms; S line each second from it);
+  E/! lines dbg_sync (bounded spin). Lines "<s.ms since VxD load> VXD|SC55W <kind> <text>\r\n". Port: BIOS data area base,
+  _VCOMM_OpenComm("COMn", -1) (VCOMM 002Bh svc 4; close = svc 9): handle = claimed (Windows programs' CreateFile fails,
+  tested), -1 IE_BADID = Windows has no driver for it (used raw), other negatives (-2 IE_OPEN...) = refused, status 1 + text.
+  UART: scratch test, IER 0, OUT2 off, FIFO on. Events: VxD loaded (Sys_Dynamic_Device_Init time), attach/port traps (E per
+  ST_ERR_*), Create/Destroy_VM = DOS box start/stop (asm ctl_vm now passes the message: sc_vm_msg), program runs/ends (INT 21h
+  hook), "vm uses the Sound Blaster" (DSP reset from a new VM), DMA start (level 1 on format change, level 2 every one + stop),
+  MPU reset/UART mode, Windows MIDI device opened/closed (SC55MIDI.DRV calls PM API AX=3/4, CX = clients; old VxD = carry),
+  S line (port counts, virq/ack, midi, dma bytes, ev fill, evlost/pcmlost = E line too, lost), F per virtual IRQ (level 2),
+  level 3 capture of 4096 trapped accesses (vxd_heap_alloc) dumped as T lines by DBGCMD_DUMP. Per-trap cost: the asm IO_Stub
+  tests sc_dbg_cap (1 = link on) and only then calls sc_dbg_capture (port counts + capture) - off = one compare; the ring
+  (16 KB) is heap-allocated at the first /DBG.
+  IOCTL 0x18 DBG {port, baud, level} / 0x19 DBG_LINE {kind + text} / 0x1A DBG_CMD {STATUS, DUMP, HANG, FAULT (tests)}.
+  detach() now clears sh before unmapping (the async timer reads it). Every line maker tests dbg_level first.
+- Hook_VMM_Fault (VMM 0081h) answers carry for this dynamic VxD on Win98 -> no "last line before a blue screen" hook (code
+  removed); the async time-out goes on after a ring-0 fault (UD2 test: S lines continue), so the ring still drains.
+- helper: DbgCfg/dbg_parse ("COM1", "COM2:2", "COM1,57600,3", ':' = ','), SC55W.INI [Debug] Link= (Settings > Debug tab:
+  port/level/baud, status, Send capture, Hang test...), /DBG: on the command line wins for the run; a running SC55W gets
+  WM_REMOTE 6 (port|level<<4|baud/100<<8) / 7 (DBGCMD_*). Link switched right after vxd_open (before attach). Every logf line
+  goes on the link (kind E by keywords, dbg_kind_of), dbg_stats once a second from the audio thread (load, midi/fm/pcm, late,
+  early = new EngineStats.early_events: buffers whose next event lay > 4x latency + 100 ms ahead, resync, synth asleep/awake).
+  Refusal = message box on a thread (start goes on) + SC55W.LOG line.
+- DBGLOG.PY: side DOS/W98 (VXD, SC55W = W98; T lines take the side of the last "I capture:"), log "<time>  <side>  <line>",
+  --side; testrig/dbg/run.sh T-line regex allows the side column.
+- Tests: win98/test/dbgtest.sh (gcc -m32, needs gcc-multilib): formatter, first lines as DOS, refusal/no UART/bad value,
+  helper line, S + E lines, ring full drops+counts, level 3 dump 4096 T lines, close. testrig/w98dbg/run.sh ZIP [VM] [CASES]
+  (QEMU acpi VM, COM1 -> chardev socket -> DBGLOG.PY): RESULTS_MAIN
+  RESULTS_HANG
+  RESULTS_FAULT
+  routetest.sh PASS. CPU (86Box P3B-F PII-450, testrig/w98dbg/cpu86.sh, TRAPB = 2M trapped INs in a DOS box, 55 ms ticks):
+  w98.8 142/142 ticks (24E/301, 8M INs each), w98.9 off 143/147, w98.9 /DBG:COM1:1 155/161 (+8-12 % on a loop doing
+  nothing but trapped INs = about 60-90 ns per trapped byte while ON; a game does 1-50k a second = < 0.5 %). Off is within
+  86Box's code-layout noise: w98.8 source + 7 KB dead code alone = 145/146 (v0codepad); old EXE + new VxD vs new EXE + old
+  VxD isolated the VxD (helper changes cost nothing).
+- Not verified on real hardware yet (HWTEST top item): null-modem D810/P5PE-VM -> second PC, serial mouse refusal, real hang.
+
 ## beta.130-w98.8 (2026-11-16, Win98 session): Windows 98 part brought up to DOS beta.130 (RELEASED, tag v1.0.0-beta.130-w98.8-usb)
 User: bring the Win98 side (VxD, MIDI driver, joystick driver, control panel/tray, installer) to the DOS feature set where it
 applies. Last Win98 release was beta.91-w98.7; DOS sections beta.92-130 triaged (applies / n/a / different approach):
