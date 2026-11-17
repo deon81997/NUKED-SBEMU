@@ -98,6 +98,15 @@ static void send_volume(unsigned l, unsigned r);
     "pop bp" \
     parm [dx] [cx] modify [ax bx cx dx si di es];
 
+/* AX=3 / AX=4: a client opened / closed the device, CX = clients open now (SC55W.VXD debug link, w98.9;
+   an older VxD answers carry and nothing happens) */
+static void send_openclose(unsigned fn, unsigned n);
+#pragma aux send_openclose = \
+    "push bp" \
+    "call dword ptr api_ep" \
+    "pop bp" \
+    parm [ax] [cx] modify [ax bx cx dx si di es];
+
 static DWORD volume = 0xFFFFFFFFUL;     /* low word left, high word right */
 
 static void push_volume(void)
@@ -216,6 +225,7 @@ DWORD FAR PASCAL __export __loadds modMessage(UINT dev, UINT msg, DWORD user, DW
         *(DWORD FAR *)user = (DWORD)i;
         opens++;
         send_volume(LOWORD(volume), HIWORD(volume));   /* SC55W may have been restarted */
+        send_openclose(3, opens);
         notify(c, MOM_OPEN, 0);
         return MMSYSERR_NOERROR;
     }
@@ -233,7 +243,9 @@ DWORD FAR PASCAL __export __loadds modMessage(UINT dev, UINT msg, DWORD user, DW
     case MODM_CLOSE:
         notify(c, MOM_CLOSE, 0);
         c->used = 0;
-        if (--opens == 0) api_ep = 0;       /* look the VxD up again next time */
+        --opens;
+        if (api_ep) send_openclose(4, opens);
+        if (opens == 0) api_ep = 0;         /* look the VxD up again next time */
         return MMSYSERR_NOERROR;
     case MODM_DATA:
         return short_msg(c, p1);

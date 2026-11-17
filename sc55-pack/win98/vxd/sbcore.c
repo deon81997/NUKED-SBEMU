@@ -68,6 +68,12 @@ static void trace(u32 code, u32 a, u32 b)
     sh->tr_head++;
 }
 
+/* serial debug link (dbg98.c, #included below the DSP code): what the trap code uses before that */
+static u32 dbg_level, c_sb, c_mpu, c_opl, c_joy, c_virq, c_ack, c_midi, c_dmab;
+static void dbg(char kind, const char *f, ...);
+static void dbg_frame(int idx);
+static void cap_add(u32 port, u32 val, int out);
+
 static void mset(void *d, int v, u32 n) { u8 *p = (u8 *)d; while (n--) *p++ = (u8)v; }
 static void mcpy(void *d, const void *s, u32 n) { u8 *a = (u8 *)d; const u8 *b = (const u8 *)s; while (n--) *a++ = *b++; }
 
@@ -100,6 +106,7 @@ static void ev_put(u8 type, u8 a, u8 b, u8 c)
  *  - status bit 6 (busy) while the event ring to SC55W is 3/4 full and SC55W is taking events (1 s without
  *    progress lets the game on), so a burst never overflows the ring (lost SysEx / note-offs). */
 static u8  mpu_uart, mpu_intel, mpu_want, mpu_rs;
+static u32 last_mpu_vm;
 static int mpu_need;
 static u8  mpu_q[8];
 static int mpu_qn;
@@ -141,7 +148,7 @@ static u8 mpu_read(u32 port)
 }
 
 static int mpu_len(u8 st) { return st >= 0xF0 ? (st == 0xF2 ? 2 : (st == 0xF1 || st == 0xF3) ? 1 : 0) : (st & 0xE0) == 0xC0 ? 1 : 2; }
-static void mpu_out(u8 b) { ev_put(EV_MIDI, b, 0, 0); }
+static void mpu_out(u8 b) { c_midi++; ev_put(EV_MIDI, b, 0, 0); }
 
 static void mpu_cmd(u8 v)
 {
@@ -153,10 +160,10 @@ static void mpu_cmd(u8 v)
         return;
     }
     lcd_pos = 150;
-    if (v == 0xFF) { mpu_reset_state(); mpu_queue(0xFE); return; }
+    if (v == 0xFF) { mpu_reset_state(); mpu_queue(0xFE); if (dbg_level) dbg('I', "MPU-401 reset (FFh) vm=%08X", last_mpu_vm); return; }
     mpu_queue(0xFE);                     /* every command is ACKed, in both modes (as SBEMU's MPU-401) */
     if (mpu_uart) return;
-    if (v == 0x3F) { mpu_uart = 1; mpu_want = 0; return; }
+    if (v == 0x3F) { mpu_uart = 1; mpu_want = 0; if (dbg_level) dbg('I', "MPU-401 UART mode (3Fh) vm=%08X", last_mpu_vm); return; }
     if (v >= 0xA0 && v <= 0xAF) { mpu_queue((u8)(v == 0xAC ? 0x15 : v == 0xAD ? 0x01 : v == 0xAF ? 100 : 0)); return; }
     if (v >= 0xB0 && v <= 0xBF) return; /* SBEMU's own panel / load requests: not a game */
     mpu_intel = 1;
@@ -338,11 +345,14 @@ static void raise_irq(int sixteen)
     if (sh) sh->irq_count++;
     if (!(trapped & ST_OK_IRQ)) return;
     irq_line = 1;
+    c_virq++;
     vxd_raise_irq(owner_vm);
+    if (dbg_level == 2) dbg_frame(sixteen && cfg.dma16 ? 1 : 0);
 }
 
 static void ack_irq(int sixteen)
 {
+    c_ack++;
     irq_status &= (u8)(sixteen ? ~2 : ~1);
     if (!irq_status) lower_line();
 }
@@ -586,6 +596,14 @@ static void xf_start(int bits, int chans, int sign, int autoinit, u32 bytes, int
     trace(1, ((u32)bits << 16) | ((u32)chans << 8) | (u32)autoinit, bytes);
     trace(2, dsp.rate, xf.bps);
     if (bits && !record) pcm_rate(dsp.rate ? dsp.rate : 22050);
+    if (dbg_level) {
+        static u32 last;
+        u32 k = ((u32)bits << 24) ^ ((u32)chans << 20) ^ ((u32)autoinit << 19) ^ ((u32)record << 18) ^ dsp.rate;
+        if (k != last || dbg_level >= 2 || vxd_time_us() - xf_idle_since > 2000000UL)
+            dbg('I', "DMA %s %u-bit %s %u Hz%s, %u bytes per IRQ, vm=%08X", record ? "record" : "play", (u32)(bits ? bits : 8),
+                chans == 2 ? "stereo" : "mono", dsp.rate, autoinit ? " auto-init" : "", bytes, owner_vm);
+        last = k;
+    }
     if (sh) {
         sh->dma_active = 1;
         sh->debug[0] = (u32)bits; sh->debug[1] = (u32)chans; sh->debug[2] = dsp.rate;
@@ -598,6 +616,7 @@ static void xf_stop(void)
 {
     xf.active = 0;
     xf_idle_since = vxd_time_us();
+    if (dbg_level >= 2) dbg('I', "DMA stop");
     if (!xf.autoinit) dsp.highspeed = 0;
     if (sh) sh->dma_active = 0;
 }
@@ -646,7 +665,7 @@ void __cdecl sc_tick(void)
             u32 n = xf.block - xf.done, got;
             if (n > todo) n = todo;
             got = xf.bits ? xf_pull(n) : n;
-            xf.done += got; xf.consumed += got; todo -= got;
+            xf.done += got; xf.consumed += got; todo -= got; c_dmab += got;
             if (xf.done >= xf.block) {
                 xf.done = 0;
                 trace(3, xf.consumed, now - xf.start_us);
@@ -942,15 +961,24 @@ int __cdecl sc_int15(u32 vm, u8 *cl)
     return 1;
 }
 
+static u32 sc_in2(u32 vm, u32 port);
 u32 __cdecl sc_in(u32 vm, u32 port)
+{
+    u32 v = sc_in2(vm, port);
+    if (dbg_level == 3) cap_add(port, v, 0);
+    return v;
+}
+static u32 sc_in2(u32 vm, u32 port)
 {
     u32 off;
     if ((trapped & ST_OK_JOY) && port == joy_port) {
+        c_joy++;
         if (vm == sys_vm && !(cfg.joy & 8)) return vxd_port_in(port);
         return joy_read();
     }
     if ((trapped & ST_OK_SB) && port >= cfg.sb_port && port < (u32)cfg.sb_port + 16) {
         off = port - cfg.sb_port;
+        c_sb++;
         switch (off) {
         case 0x0: case 0x2: case 0x8: return cfg.opl ? opl_read_status() : 0xFF;
         case 0x1: case 0x3: case 0x9: return 0xFF;
@@ -965,10 +993,13 @@ u32 __cdecl sc_in(u32 vm, u32 port)
         return 0xFF;
     }
     if ((trapped & ST_OK_OPL) && port >= 0x388 && port <= 0x38B) {
+        c_opl++;
         return (port == 0x388) ? opl_read_status() : 0xFF;
     }
-    if ((trapped & ST_OK_MPU) && (port == cfg.mpu_port || port == (u32)cfg.mpu_port + 1))
+    if ((trapped & ST_OK_MPU) && (port == cfg.mpu_port || port == (u32)cfg.mpu_port + 1)) {
+        c_mpu++;
         return mpu_read(port);
+    }
     (void)vm;
     return 0xFF;
 }
@@ -977,13 +1008,16 @@ void __cdecl sc_out(u32 vm, u32 port, u32 val)
 {
     u8 v = (u8)val;
     u32 off;
+    if (dbg_level == 3) cap_add(port, val, 1);
     if ((trapped & ST_OK_JOY) && port == joy_port) {
+        c_joy++;
         if (vm == sys_vm && !(cfg.joy & 8)) vxd_port_out(port, val);
         else joy_t0 = vxd_time_us();
         return;
     }
     if ((trapped & ST_OK_SB) && port >= cfg.sb_port && port < (u32)cfg.sb_port + 16) {
         off = port - cfg.sb_port;
+        c_sb++;
         switch (off) {
         case 0x0: case 0x8: if (cfg.opl) opl_index[0] = v; return;
         case 0x1: case 0x9: if (cfg.opl) opl_write_data(0, v); return;
@@ -991,7 +1025,9 @@ void __cdecl sc_out(u32 vm, u32 port, u32 val)
         case 0x3: if (cfg.opl && dsp.version >= 0x300) opl_write_data(1, v); return;
         case 0x4: mix_index = v; return;
         case 0x5: if (dsp.version >= 0x300) mixer_write(v); return;
-        case 0x6: owner_vm = vm;
+        case 0x6:
+            if (dbg_level && (v & 1) && vm != owner_vm) dbg('I', "vm=%08X uses the Sound Blaster (DSP reset)", vm);
+            owner_vm = vm;
             if (v & 1) { dsp.reset_state = 1; dsp_reset(); }
             else if (dsp.reset_state == 1) { dsp.reset_state = 0; dsp.outn = dsp.outp = 0; dsp_reply(0xAA); }
             return;
@@ -1001,15 +1037,20 @@ void __cdecl sc_out(u32 vm, u32 port, u32 val)
     }
     if ((trapped & ST_OK_OPL) && port >= 0x388 && port <= 0x38B) {
         int bank = (port >= 0x38A) ? 1 : 0;
+        c_opl++;
         if (port & 1) opl_write_data(bank, v);
         else opl_index[bank] = v;
         return;
     }
     if ((trapped & ST_OK_MPU) && (port == cfg.mpu_port || port == (u32)cfg.mpu_port + 1)) {
+        c_mpu++;
+        last_mpu_vm = vm;
         mpu_write(port, v);
         return;
     }
 }
+
+#include "dbg98.c"
 
 /* ====================================================================== */
 /* attach / detach                                                        */
@@ -1060,6 +1101,19 @@ void __cdecl sc_vm_gone(u32 vm)
     if (i >= 0) vms[i].vm = 0;
 }
 
+/* Create_VM (7) / Destroy_VM (0Ch) */
+void __cdecl sc_vm_msg(u32 vm, u32 msg)
+{
+    if (msg == 0x0C) sc_vm_gone(vm);
+    if (dbg_level) dbg('I', msg == 0x0C ? "DOS box stop vm=%08X" : "DOS box start vm=%08X", vm);
+}
+
+/* Sys_Dynamic_Device_Init: the debug link's clock starts here */
+void __cdecl sc_dyn_init(void)
+{
+    load_ms = vxd_time_ms();
+}
+
 /* AX=4B00h EXEC (before DOS runs it): full name and size with nested DOS calls */
 static void note_exec(u32 vm, u8 *cl)
 {
@@ -1097,6 +1151,7 @@ static void note_exec(u32 vm, u8 *cl)
     mcpy(vms[slot].prog[vms[slot].depth].path, full, 128);
     vms[slot].depth++;
     vms[slot].serial = ++prog_serial;
+    if (dbg_level) dbg('I', "vm=%08X runs %s (%u bytes)", vm, (const char *)full, size);
 }
 
 /* from the asm INT 21h hook: AX=4B00h, AH=4Ch / 31h / 00h */
@@ -1113,6 +1168,7 @@ void __cdecl sc_int21(u32 vm, u8 *cl)
     if (slot >= 0 && vms[slot].depth) {
         vms[slot].depth--;
         vms[slot].serial = ++prog_serial;
+        if (dbg_level) dbg('I', "vm=%08X program ends (AH=%02Xh)", vm, ax >> 8);
     }
 }
 
@@ -1136,9 +1192,10 @@ static void detach(void)
     if (trapped & ST_OK_JBIOS) vxd_hook_int15(0);
     if (hooked21) { vxd_hook_int21(0); hooked21 = 0; }
     if (min_on) { vxd_min_period(0); min_on = 0; }
+    if (dbg_level && trapped) dbg('I', "detach: traps removed");
     trapped = 0;
     ddb_export(0);
-    if (sh) { vxd_unmap_block((u32)sh, sh_size); sh = 0; }
+    if (sh) { SC55W_SHARED *p = sh; sh = 0; vxd_unmap_block((u32)p, sh_size); }   /* sh = 0 first: the async link timer reads it */
 }
 
 static u32 attach(u32 user_addr)
@@ -1202,6 +1259,7 @@ static u32 attach(u32 user_addr)
     }
     trapped = st & 0xFF;
     s->attach_status = st;
+    if (dbg_level) dbg_attach(st);
     s->now_us = vxd_time_us();
     ddb_export(s);
     return st;
@@ -1258,6 +1316,30 @@ int __cdecl sc_ioctl(u32 code, u8 *in, u32 inlen, u8 *out, u32 outlen)
         if (outlen >= 4) { *(u32 *)out = r; return 4; }
         return 0;
     }
+    case IOCTL_SC55W_DBG: {             /* in: port (0 = off), baud, level; out: status + message */
+        u32 r;
+        if (inlen < 12 || outlen < 8) return -1;
+        r = dbg_open(((u32 *)in)[0], ((u32 *)in)[1], ((u32 *)in)[2], (char *)out + 4, outlen - 4);
+        *(u32 *)out = r;
+        if (r == 0 && dbg_level && sh) dbg_attach(sh->attach_status);
+        return (int)outlen;
+    }
+    case IOCTL_SC55W_DBG_LINE: {        /* in: kind byte + text (the helper's line) */
+        char t[200];
+        u32 n = inlen > 1 ? inlen - 1 : 0;
+        if (!dbg_level || !inlen) return 0;
+        if (n > sizeof t - 1) n = sizeof t - 1;
+        mcpy(t, in + 1, n); t[n] = 0;
+        dbg_raw(0, "SC55W", (char)in[0], t);
+        return 0;
+    }
+    case IOCTL_SC55W_DBG_CMD: {         /* in: DBGCMD_*; out: status + message */
+        u32 r;
+        if (inlen < 4 || outlen < 8) return -1;
+        r = dbg_cmd(*(u32 *)in, (char *)out + 4, outlen - 4);
+        *(u32 *)out = r;
+        return (int)outlen;
+    }
     case IOCTL_SC55W_FOCUS: {
         SC55W_FOCUS *f = (SC55W_FOCUS *)out;
         u32 owner = vxd_kbd_owner();
@@ -1296,4 +1378,12 @@ void __cdecl sc_api_volume(u32 v)
 void __cdecl sc_exit(void)
 {
     detach();
+    if (dbg_level) dbg('I', "SC55W.VXD unloads");
+    dbg_close();
+}
+
+/* 16-bit MIDI driver: a Windows program opened (1) / closed (0) the "NUKED SB-EMU" MIDI device */
+void __cdecl sc_api_open(u32 open, u32 clients)
+{
+    if (dbg_level) dbg('I', open ? "Windows MIDI device opened (%u open)" : "Windows MIDI device closed (%u open)", clients);
 }
