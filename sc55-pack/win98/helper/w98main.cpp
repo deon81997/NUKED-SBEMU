@@ -217,7 +217,7 @@ static void dbg_line(char kind, const char* fmt, ...)
 static char dbg_kind_of(const char* t)
 {
     static const char* bad[] = {"error", "fail", "could not", "cannot", "not found", "missing", "no sound", "did not",
-                                "ran dry", "underrun", "lost", "not loaded", "skipped"};
+                                "ran dry", "underrun", "lost", "not loaded", "skipped", "no complete"};
     std::string l = t;
     for (auto& ch : l) ch = (char)tolower((unsigned char)ch);
     if (l.compare(0, 9, "activity:") == 0 || l.compare(0, 6, "trace:") == 0) return 'I';
@@ -2522,6 +2522,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE, LPSTR cmd, int)
             if (v == "DUMP") dbg_cmd_arg = DBGCMD_DUMP;
             else if (v == "HANG") dbg_cmd_arg = DBGCMD_HANG;
             else if (v == "STATUS") dbg_cmd_arg = DBGCMD_STATUS;
+            else if (v == "FAULT") dbg_cmd_arg = DBGCMD_FAULT;     // TEST ONLY: blue screen
             else if (dbg_parse(v, dbg_arg)) dbg_given = true;
             else {
                 MessageBoxA(NULL, ("/DBG:" + v + " - use /DBG:COM1 or /DBG:COM2, optionally :level (1-3) and :baud, "

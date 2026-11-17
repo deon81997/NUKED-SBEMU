@@ -1,6 +1,26 @@
-NUKED SB-EMU - REAL HARDWARE CHECKLIST (beta.130)
+NUKED SB-EMU - REAL HARDWARE CHECKLIST (beta.130-w98.9)
 Things an emulator cannot confirm. Tick each one; for any failure keep
 C:\SC55\BUGREP.TXT (MENU > Tests > Bug report) and CRASH.TXT if there is one.
+
+[ ] beta.130-w98.9 Windows 98 serial debug link (D810 on its D/Port, or the
+    P5PE-VM; null-modem cable to the main PC as in DBGLOG.TXT; COM1 on in
+    the BIOS; no serial mouse on COM1). Main PC:  python DBGLOG.PY COM3
+    Windows 98 PC: Start > Run  C:\SC55\WIN98\SC55W.EXE /DBG:COM1
+    1) The first W98 lines: "VXD I Serial debug link: COM1 (3F8), 115200
+    baud, level 1, port claimed from Windows", "VxD loaded", "port traps:
+    SB ok, OPL ok, MPU ok ..."; then "VXD S ..." and "SC55W S ..." once a
+    second. 2) Duke 3D in a DOS box: "DOS box start", "vm=... runs
+    ...DUKE3D.EXE", "uses the Sound Blaster", "DMA play ...", "MPU-401 UART
+    mode"; quit: "program ends", "DOS box stop". 3) Media Player, a .MID:
+    "Windows MIDI device opened" / "closed". 4) HyperTerminal (or any
+    terminal program) on COM1 while the link is on: it cannot open COM1.
+    SC55W /DBG:0, then HyperTerminal on COM1 stays open and SC55W
+    /DBG:COM1 says COM1 is in use (message box). 5) Status CPU % the same
+    with the link off and on (Duke attract mode, 1 minute each). 6) Only
+    if you can reset the PC: SC55W /DBG:HANG - Windows stops, the last
+    line in DBGLOG.PY is "VXD ! hang test ...". Send the dbg-*.log.
+    Any freeze or blue screen in Windows from now on: keep the link on
+    (Settings > Debug > COM1, level 1) and send the dbg-*.log.
 
 [ ] beta.130-w98.8 Windows 98 part (D810 and P5PE-VM, Windows 98 running,
     SETUP98.BAT run again and Windows restarted). 1) C:\SC55\WIN98\SC55W.EXE

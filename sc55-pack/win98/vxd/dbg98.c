@@ -22,6 +22,7 @@ extern void __cdecl vxd_dbg_arm(u32 ms);
 extern u32  __cdecl vxd_vcomm_open(const char *name, u32 vmid);
 extern void __cdecl vxd_vcomm_close(u32 h);
 extern void __cdecl vxd_hang(void);
+extern void __cdecl vxd_fault_test(void);
 extern u32  __cdecl vxd_fault_hook(u32 fault, u8 *stub);
 extern void * __cdecl vxd_heap_alloc(u32 n);
 
@@ -287,7 +288,7 @@ static u32 dbg_open(u32 port, u32 baud, u32 level, char *msg, u32 msgmax)
     u32 base, h;
     const char *how;
     msg[0] = 0;
-    if (!port) { dbg_close(); fmt(msg, (int)msgmax, "serial debug link off"); return 0; }
+    if (!port) { dbg_close(); fmt(msg, (int)msgmax, "off"); return 0; }
     if (port > 4 || level > 3 || (baud && (baud < 300 || baud > 115200))) { fmt(msg, (int)msgmax, "bad /DBG value"); return 3; }
     if (!level) level = 1;
     if (port == dbg_port && dbg_base) {               /* already on: new level / baud */
@@ -326,8 +327,16 @@ static u32 dbg_open(u32 port, u32 baud, u32 level, char *msg, u32 msgmax)
     dbg_next_s = dbg_now() + 1000;
     fault_hooks(1);
     dbg('I', "Serial debug link: %s (%X), %u baud, level %u, port %s", name, base, dbg_baud, level, how);
-    dbg('I', "VxD loaded: %s build %u, interface %u, %u.%03u s ago", nsb_version_tag + 6, (u32)BUILD_ID, (u32)SC55W_IF_VERSION,
-        dbg_now() / 1000, dbg_now() % 1000);
+    {
+        char v[64];
+        int i = 0;
+        const char *t = nsb_version_tag + 6;                /* "$VER: NUKED SB-EMU <ver> (SC55W.VXD) $" */
+        while (t[i] && t[i] != '$' && i < 63) { v[i] = t[i]; i++; }
+        while (i && v[i - 1] == ' ') i--;
+        v[i] = 0;
+        dbg('I', "VxD loaded: %s build %u, interface %u, %u.%03u s ago", v, (u32)BUILD_ID, (u32)SC55W_IF_VERSION,
+            dbg_now() / 1000, dbg_now() % 1000);
+    }
     fmt(msg, (int)msgmax, "%s (%X), %u baud, level %u, port %s", name, base, dbg_baud, level, how);
     return 0;
 }
@@ -375,6 +384,12 @@ static u32 dbg_cmd(u32 c, char *msg, u32 msgmax)
         if (!dbg_base) { fmt(msg, (int)msgmax, "the hang test needs the link on"); return 1; }
         dbg_raw(1, "VXD", '!', "hang test (SC55W /DBG:HANG): interrupts off, Windows stops now - this must be the last line");
         vxd_hang();
+        return 0;
+    case DBGCMD_FAULT:
+        if (!dbg_base) { fmt(msg, (int)msgmax, "the fault test needs the link on"); return 1; }
+        dbg('I', "fault test (SC55W /DBG:FAULT): a general protection fault in SC55W.VXD now");
+        vxd_fault_test();
+        fmt(msg, (int)msgmax, "fault test: Windows went on");
         return 0;
     }
     return 3;
