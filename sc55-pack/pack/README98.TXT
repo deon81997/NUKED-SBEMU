@@ -191,8 +191,8 @@ C:\SC55\WIN98\SC55W.INI and the uninstaller puts it back.
  3. SETTINGS
 -----------------------------------------------------------------------------
 
-Three tabs: "Sound and MIDI", "Joystick" and "Pad keys" (Ctrl+Tab goes to
-the next one). Save / Apply / Cancel are for all three.
+Four tabs: "Sound and MIDI", "Joystick", "Pad keys" and "Debug" (Ctrl+Tab
+goes to the next one). Save / Apply / Cancel are for all four.
 
 "Sound and MIDI" has the same options as SETTINGS.BAT / SBSET, with the
 SBEMU switch they set:
