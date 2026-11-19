@@ -1,3 +1,15 @@
+## beta.131 (2026-11-18, DOS session): Audigy analog + S/PDIF at once (RELEASED, tag v1.0.0-beta.131-usb)
+- User (P5PE-VM + Audigy 2): stereo and S/PDIF don't play together. Cause: sc_sbliv.c snd_emu_spdif_jack() switched the
+  shared jack with A_IOCFG_GPOUT0 = 44h (ALSA's mask) = jack bit 04h + analog mute bit 40h (DISABLE_ANALOG, 'enable' on
+  chiprev 4). Mode 1 thus muted analog on Audigy 1 and 2 (Audigy 2 inverted polarity), mode 0 on the Audigy 4 PRO. Now only
+  04h is switched (same polarity as before, /SPDIFINV unchanged); 40h stays as hw_init set it. CA0108 (2 Value / 4) path
+  (P16V 7Ah) unchanged. SpdifSet text has ANALOG=on|MUTED, SBDIAG SPDIF prints "analog outputs (front / rear)".
+- Test: no Audigy in 86Box/QEMU - bit table old vs new for A1/A2/A4 PRO x /SPDIF 0/1/2 x /SPDIFINV: jack bit identical in
+  all 18 cases, analog on in all (old: off in 9). Build clean (no new warnings). Not in the hot path: no speed run.
+- Release zip = beta.130-w98.10 zip + rezip.py (DOS EXEs, README.TXT, HWTEST.TXT; Win98 files unchanged).
+- Hardware to test: HWTEST top P5PE-VM item (SBDIAG SPDIF "analog ... on", TONE on speakers + receiver, SPDIF 0/1).
+- AWE line: take this with the next MUXED sync (sc_sbliv.c + sbdiag.c only).
+
 ## beta.130-w98.10 (2026-11-17, Win98 session): Windows 98 debug link free when on (RELEASED, tag v1.0.0-beta.130-w98.10-usb)
 Same task as w98.9 (SC55W /DBG serial link), run in a second chat in parallel; w98.9 landed first, so this one ships what it
 found on top of it:
