@@ -1,3 +1,28 @@
+## beta.132 (2026-11-21, DOS session): Audigy 2 ZS S/PDIF out (RELEASED, tag v1.0.0-beta.132-usb)
+- User: S/PDIF on the Audigy 2 ZS doesn't work in DOS SBEMU (P5PE-VM). No user details yet (asked once): reading taken =
+  "no lock on the Line Out 3 mini-jack in any /SPDIF mode".
+- Cause: beta.131 switched only A_IOCFG 04h. On the ZS that never makes the jack digital: Linux emumixer.c
+  snd_emu10k1_shared_spdif_put switches A_IOCFG_GPOUT0 = 44h as one field (+ HCFG GPOUT0), and emu10k1_main.c gives
+  SB0350/0350a/0350b/0360/0353 invert_shared_spdif (digital = 44h clear); 40h = analog DACs on (emu10k1_main.c
+  snd_emu10k1_audio_enable, kX driver/p16v.cpp); kX driver/hal.cpp has no separate jack bit on chiprev-4 cards.
+  Host trace: beta.131 left 44h set in all 30 ZS cases (= ALSA "analog").
+- Fix: sc_emujack.h (pure, host-tested): ZS subsystems 20011102 20021102 20051102 20061102 10031102 switch the whole 44h
+  (digital = clear, so the card mutes its analog outputs, = Creative "Digital Output Only"); every other Audigy keeps the
+  beta.131 writes bit for bit (48 of 48 rows). /SPDIFINV:1 on the ZS = speakers + Live!Drive digital out. Table: SB0350a
+  (20051102) added as in Linux. SpdifSet JACK=...(inv,zs); SBDIAG SPDIF prints a ZS note.
+- Not changed (no proof it matters): ALSA's spdif_bug (1-sample right-channel delay, only for AC3 passthrough);
+  SBEMU inverts SB0240/SB0280/"Audigy 2 unknown" while ALSA does not (beta.126 choice, left as is - check when a
+  non-ZS Audigy 2 report names its SSID). P16V HCFG2/CAPTURE_P16V_SOURCE differ from ALSA (P16V 24-bit path only).
+- Tests: testrig/spdif/jacktest.c (jacktrace.txt = per-model old/new IOCFG/HCFG dump) PASS; make clean build, no new
+  warnings; QEMU testrig/spdif/run.sh PASS; 86Box P3B-F PII-450 ES1371 testrig/spdif/smoke86.sh (new): boots, SBDIAG
+  SPDIF CARD=none, IDLEMTR old 1632781/1610235 vs new 1632782/1610236 (no runtime change: init/option path only).
+- Zip = beta.131 zip + rezip.py. Wiki: priavte wiki/src Changelog (+beta.131 row that was missing) + Sound-Cards;
+  post job priavte wiki/post/mux-b132.json NOT posted (no browser in this session).
+- Next: 1) P5PE-VM HWTEST top item (SPDIFZS.TXT, lock per step, SSID); 2) if the ZS SSID is not in the list or the
+  jack still won't lock with 44h clear, try 04h set + 40h clear; 3) AWE line: take sc_sbliv.c/sc_emujack.h/sbdiag.c.
+- Test downloads: DJGPP v3.4 (andrewwutw), Linux sound/pci/emu10k1 + include/sound/emu10k1.h (torvalds master),
+  kxproject/kx-audio-driver; store-dos71, store-86rig.
+
 ## beta.131 (2026-11-18, DOS session): Audigy analog + S/PDIF at once (RELEASED, tag v1.0.0-beta.131-usb)
 - User (P5PE-VM + Audigy 2): stereo and S/PDIF don't play together. Cause: sc_sbliv.c snd_emu_spdif_jack() switched the
   shared jack with A_IOCFG_GPOUT0 = 44h (ALSA's mask) = jack bit 04h + analog mute bit 40h (DISABLE_ANALOG, 'enable' on
