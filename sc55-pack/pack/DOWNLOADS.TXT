@@ -65,7 +65,7 @@ is optional. Put each file where it says and run SETUP / CDINST again.
   CTMOUSE.EXE                  CuteMouse 2.1b4, Nagy Daniel, Eric Auer and
                                others; source in FILES\MOUSE\CTM21B4.ZIP
                                https://cutemouse.sourceforge.net/
-  JEMMEX, JEMM386, JLOAD,      Jemm, Japheth
+  JEMMEX, JEMM386, JLOAD,      Jemm 5.87, Japheth
   QPIEMU.DLL                   https://github.com/Baron-von-Riedesel/Jemm
   UCDD.EXE (0.9.5-a2)          uCDD, Vorvek - GPL-3.0 (FILES\CDSET\UCDD-LIC.TXT)
                                https://github.com/vorvek/uCDD

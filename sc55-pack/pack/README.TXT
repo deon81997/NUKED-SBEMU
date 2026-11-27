@@ -1333,7 +1333,7 @@ CONTENTS
   as separate options.
 
      Option A   JEMM + QPIEMU.DLL     start with  C:\SC55\SC55JEM.BAT
-        JEMM 5.86 is INCLUDED (installed to C:\SC55\RM\JEMM): JEMMEX.EXE,
+        JEMM 5.87 is INCLUDED (installed to C:\SC55\RM\JEMM): JEMMEX.EXE,
         JEMM386.EXE, JLOAD.EXE, QPIEMU.DLL and Jemm's own texts.
      Option B   QEMM                  start with  C:\SC55\SC55QMM.BAT
         QEMM is NOT included (commercial). Put QEMM386.SYS and the other files
@@ -1737,7 +1737,7 @@ CONTENTS
      FILES\CDIMAGES   TEST.CUE / TEST.BIN test disc
      FILES\BOOT       BOOTCFG.BAT, RESET.BAT
      FILES\DOSMODE    CONFIG/AUTOEXEC samples, CDROM-D810.TXT
-     FILES\JEMM      JEMM 5.86 (JEMMEX, JEMM386, JLOAD, QPIEMU.DLL)
+     FILES\JEMM      JEMM 5.87 (JEMMEX, JEMM386, JLOAD, QPIEMU.DLL)
      FILES\QEMM      empty: for your own QEMM files
      FILES\XCDROM, VIDECD, GSCDROM   CD-ROM drivers and their texts
 
@@ -1747,7 +1747,7 @@ CONTENTS
      C:\SC55\SC55.BAT TEST.BAT SETTINGS.BAT CDROM.BAT CDROMLG.BAT
      C:\SC55\SC55JEM.BAT SC55QMM.BAT   real-mode launchers (section 11)
      C:\SC55\SC55J16.BAT   + 16-bit protected-mode games (section 11b)
-     C:\SC55\RM\JEMM (Jemm 5.86), C:\SC55\RM\QEMM (your files)
+     C:\SC55\RM\JEMM (Jemm 5.87), C:\SC55\RM\QEMM (your files)
      C:\SC55\THEME.CFG    menu style, display mode, animation and font
      C:\SC55\MENU.CFG     the item the menu was last on
      C:\SC55\ROMS\ROMHASH.CAC  ROM recognition cache (safe to delete)
@@ -1769,7 +1769,7 @@ CONTENTS
 
   SBEMU (Baron-von-Riedesel, crazii, others), Nuked-SC55 and this port:
   GPL-2.0-or-later. Nuked-OPL3: LGPL-2.1+. TinySoundFont: MIT.
-  Munt libmt32emu 2.8.3 (MT-32 emulation, Dean Beeler, Jerome Fisher,
+  Munt libmt32emu 2.8.6 (MT-32 emulation, Dean Beeler, Jerome Fisher,
   Sergey V. Mikayev and others): LGPL-2.1+ (C:\SC55\MUNT-LIC.TXT), source
   at https://github.com/munt/munt.
   The screen font Terminus (Dimitar Zhekov): SIL Open Font Licence 1.1.
