@@ -60,9 +60,6 @@ static struct {
     // Global state
     int      initialized;
     int      output_freq;
-
-    // upstream 488ab82: the game's FPU state, saved around our doubles in the port trap (the sound interrupt saves it already: MAIN_FPU_ENTER)
-    unsigned char fpu_state_io[108] __attribute__((aligned(16)));
 } spc;
 
 // ---------------------------------------------------------------------------
@@ -73,8 +70,6 @@ static struct {
 static void vpcspeaker_update_pit(void)
 {
     if(spc.pit_count == 0) return;
-
-    fpu_save(spc.fpu_state_io);
 
     double ticks = (double)spc.pit_count;
 
@@ -94,8 +89,6 @@ static void vpcspeaker_update_pit(void)
             spc.pit_half = ticks;
             break;
     }
-
-    fpu_restore(spc.fpu_state_io);
 }
 
 // Set Port 61h value

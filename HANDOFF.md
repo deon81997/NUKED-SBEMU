@@ -1,3 +1,28 @@
+## beta.133 (2026-11-27, DOS session): upstream SBEMU sync crazii 82c2d66..9df0421 (RELEASED, tag v1.0.0-beta.133-usb)
+- Parallel: Munt 2.8.6 + JEMM 5.87 = its own chat (next beta number); AWE sync = its own chat once both are tagged.
+- Taken: 11d5924 ADPCM crash (count max 2; testrig/adpcm/run.sh: beta.132 HANGS on 1-8 byte ADPCM blocks, beta.133
+  56/56 IRQs PASS); df474b2 YMF mic muted + no line-in -> ADC -> S/PDIF loop; 3434214 integer mixer percent; a09b08b SB16
+  2 dB mixer (SB Pro regs also set the 5-bit ones, as CT1745; SB16 vol/voice/midi/cd from 0x30/32/34/36 via a Q8 2 dB
+  table, used in every mix path; upstream's "no SFX ratio when /OPL:0" NOT taken = beta.132 level kept); 488ab82 /PCS:0|1
+  (default 1, re-init on rate change, IsActive = speaker on or a latched beep: no PC speaker CPU while silent);
+  bbac6ef/4587cba no-FPU: SET SBEMU_FPU=0|1, !_8087 = OPL + VMPU + PCS off, fnsave/frstor in MAIN_FPU_ENTER/LEAVE, the
+  TSR handler and the qemm.c/hdpmipt.c trap wrappers skipped (one compare). Upstream's "no CPUID = no FPU" guess NOT
+  taken (a 486DX without CPUID has an FPU). vpcspeaker FPU save NOT taken: our trap wrappers + ISR already save (beta.84).
+- Skipped: /U unload (74517bc + 6c9da9b 8115c0d c37275b 11e9561) - our TSR also holds USB disk/redir, INT 15/21/28/2F,
+  port 60h trap, IRQ guard, CD link, SC-55/Munt memory: own chat. 3f1a804 "remove all RM memory" (part of /U; our RM
+  stubs need DOS memory). df7e844/9df0421 (MCB owner stores of the /U TSR path) - code not in our fork, our
+  DPMI_SEGOFF2L masks the UMB high word already. 2040a6a/c996462 USB Audio OHCI (sc_usbpcm.c takes the OHCI over
+  itself = fights our USB stack; port onto sbemu/usb* as a class driver = own task). SBEMU_IRQ_GUARD 0 (we use irqguard).
+- Tests: build clean; adpcm/run.sh old HANG / new PASS; midi/gamecap.sh duke (4775 events) miles rm PASS (QEMU);
+  /PCS:0 + /? QEMU check PASS; 86Box P2B-LS PII-450 smoke86.sh IDLEMTR 3x A/B: old 1632782/1610236..1632771, new
+  1634593/1612022..1634594 (+0.1% idle = no slowdown). Win98: dbgtest.sh + routetest.sh PASS; Win98 binaries unchanged
+  (none of the changed files are in the Win98 build) - zip keeps beta.132's FILES/WIN98.
+- Zip = beta.132 zip + rezip.py (DOS EXEs, README.TXT, HWTEST.TXT).
+- Next: 1) HWTEST beta.133 item (D810 + P5PE-VM); 2) /U unload port (own chat, prompt in priavte PLAYBOOK);
+  3) USB Audio class output on our USB stack (own chat).
+- Rig fix: testrig/spdif/smoke86.sh kills 86Box with -9 (Qt 86Box ignores SIGTERM: 6 VMs piled up).
+- Test downloads: DJGPP v3.4, crazii/SBEMU (git), pbatard/rufus; store-dos71, -86rig, -qemu, -personal, -win98.
+
 ## beta.132 (2026-11-21, DOS session): Audigy 2 ZS S/PDIF out (RELEASED, tag v1.0.0-beta.132-usb)
 - User: S/PDIF on the Audigy 2 ZS doesn't work in DOS SBEMU (P5PE-VM). No user details yet (asked once): reading taken =
   "no lock on the Line Out 3 mini-jack in any /SPDIF mode".
