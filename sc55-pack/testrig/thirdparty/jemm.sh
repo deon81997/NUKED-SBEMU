@@ -6,7 +6,7 @@
 #   QPIEMU), CDON.BAT + UCDD -mount TEST.CUE + M:\TEST.TXT, SBDIAG. JEMMDIR = JEMMEX.EXE JLOAD.EXE QPIEMU.DLL
 #   [JEMM386.EXE]; they replace the zip's FILES\JEMM. Result: /tmp/jt-TAG/RESULT.LOG (+ SETUP/JEM/CD logs).
 # Env: REL (unzipped release, default /home/claude/rel/NUKEDSB), ROMS (SC-55 set, default mk2 from store-personal),
-#      IMG (default /home/claude/vms/dos71/msdos71.img), TMO (default 600).
+#      IMG (default /home/claude/vms/dos71/msdos71.img), TMO (default 600). Screenshot at the end: /tmp/jt-TAG/end.png.
 set -u
 T=$(cd "$(dirname "$0")" && pwd); TR=$(dirname "$T")
 TAG=$1 JD=$2 SBX=${3:-}; REL=${REL:-/home/claude/rel/NUKEDSB}; IMG=${IMG:-/home/claude/vms/dos71/msdos71.img}
@@ -42,7 +42,9 @@ C:
 CD \
 C:\RMTRAP.COM >> C:\RESULT.LOG
 IF ERRORLEVEL 1 GOTO FAIL
+ECHO STEP CDON >> C:\RESULT.LOG
 CALL C:\CDSET\CDON.BAT > C:\CD.LOG
+ECHO STEP MOUNT >> C:\RESULT.LOG
 C:\CDSET\UCDD.EXE -mount C:\CDIMAGES\TEST.CUE >> C:\CD.LOG
 IF NOT EXIST M:\TEST.TXT GOTO NOCD
 ECHO M: MOUNT OK >> C:\RESULT.LOG
@@ -64,6 +66,6 @@ ECHO FAIL >> C:\RESULT.LOG
 :END
 EOF
 sed -i 's/$/\r/' "$W/JT.BAT"
-"$TR/common/run.sh" -i -t "${TMO:-600}" -k "$W/c.img" "$W/JT.BAT" > "$W/RESULT.LOG" 2> "$W/run.err"; rc=$?
+"$TR/common/run.sh" -i -t "${TMO:-600}" -s "$W/end.png" -k "$W/c.img" "$W/JT.BAT" > "$W/RESULT.LOG" 2> "$W/run.err"; rc=$?
 for f in JV.TXT SETUP.LOG JEM.LOG CD.LOG SC55/SBLOG.TXT; do mtype -i "$M" "::$f" > "$W/$(basename $f)" 2>/dev/null; done
 cat "$W/RESULT.LOG"; exit $rc

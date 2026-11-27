@@ -3,7 +3,7 @@ REAL-MODE GAMES WITH JEMM+QPIEMU OR QEMM  (Windows 98 "MS-DOS mode" or plain DOS
 
 Plain SC55.BAT (HDPMI only) serves protected-mode games. Real-mode games (most older DOS games)
 need a V86 manager that can trap I/O ports: JEMM with QPIEMU.DLL, or QEMM.
-  C:\SC55\RM\JEMM    JEMM 5.87 is included: JEMMEX.EXE, JEMM386.EXE, JLOAD.EXE, QPIEMU.DLL
+  C:\SC55\RM\JEMM    JEMM 5.86 is included: JEMMEX.EXE, JEMM386.EXE, JLOAD.EXE, QPIEMU.DLL
   C:\SC55\RM\QEMM    you provide QEMM386.SYS and the other files your QEMM needs
 (put the QEMM files in FILES\QEMM in the pack before SETUP, or copy them there afterwards).
 

@@ -1,3 +1,32 @@
+## beta.134 (2026-11-27, DOS + Win98 session): Munt libmt32emu 2.8.6 (RELEASED, tag v1.0.0-beta.134-usb); JEMM 5.87 SKIPPED
+- Munt 2.8.5 -> 2.8.6 (tag libmt32emu_2_8_6 = 91d2205): sc55-pack/third_party/mt32emu = upstream src unchanged, config.h
+  2.8.6; makefile MT32EMU_WITH_STD_SNPRINTF -> MT32EMU_WITH_SNPRINTF + MT32EMU_WITH_EXP2F + -include
+  third_party/mt32emu_exp2f.h (DJGPP has no exp2f; shim = 2.8.5's EXP2F formula; without EXP2F 2.8.6 falls to
+  std::exp(float) and the integer exp9 table changes). Win98: tools/build-deps.sh (config.h 2.8.6, same shim) and
+  build-native.sh; munt checkout = /home/claude/munt at the 2.8.6 tag. API used by vmpu_mt32.cpp / synths.cpp /
+  romscan.cpp unchanged (Synth.h, ROMInfo.h, MidiStreamParser.h, File*.h identical). SC55W imports unchanged.
+- Host renders (testrig/mt32host: build.sh, render.cpp = vmpu_mt32 calls, smf2ev.py --gen MT32TEST.MID, cmp.py, spec.py):
+  avmidi 05 on MT-32 + CM-32L byte-identical 2.8.5 vs 2.8.6 (int and float output; SC55W also uses the int renderer).
+  MT32TEST differs from 10.7 s: 2.8.6 updates amp/pitch/cutoff only on change (evaluation order vs TVA interrupt) =
+  max 36 LSB on a CC7 change (SNR 60 dB), then phase drift; same size as 2.8.5 vs 2.8.5 with events moved 1/32000 s;
+  octave bands within 0.35 dB. callgrind -15% instructions.
+- Tests: QEMU notetest /VMT32:MT32 MT32TEST 0 dropped (old + new); thirdparty/dukemt.sh Duke 3D music through Munt
+  (-30 dBFS, old = new); win98 enginetest mt32 old = new (byte-identical WAV), routetest PASS; 86Box P3B-F PII-450
+  thirdparty/mt86.sh x2 each: MT-32 render 49% -> 44% real time, CPU 44% -> 42%. thirdparty/jemm.sh on the release zip
+  (MS-DOS 7.1, JEMMEX 5.86, SETUP + CDINST, SC55JEM SC-55 boot, RMTRAP real-mode trap, M: mount) PASS.
+- JEMM 5.87 NOT shipped (user: skip): jemm.sh / SBR.BAT (SC55JEM + RMTRAP.COM real-mode DSP/MPU trap, then
+  CDON.BAT + UCDD -mount) hung 5 of 12 runs with JEMMEX/JLOAD/QPIEMU 5.87, 0 of 12 with 5.86; hang after SHSUCDX
+  "installed" / before M:\TEST.TXT. 5.87 without SBEMU or with QPIEMU only: 12/12 pass. Changelog suspects: Simulate_Int
+  ESP fix, NMI handling, IOCTL 08 service table (uCDD supports it since 5.87pre1; pre1 -> final = renames only).
+  JemmB_v587.zip: github.com/Baron-von-Riedesel/Jemm/releases/download/v5.87/. Rig: TMO=240 thirdparty/jemm.sh TAG JEMMDIR.
+- Zip = beta.133 zip + common/rezip.py + thirdparty/rezip3p.py (README98 x2, DOSMODE, DOWNLOADS, WIN98 binaries, SOURCE.ZIP;
+  JEMM only with a JEMMDIR arg). Win98 VERSION = 1.0.0-beta.134-usb, every Win98 binary rebuilt.
+- Not done: full Win98 VM run of SC55W MT-32 (HWTEST item 3); wiki Changelog row in priavte wiki/src (post job pending).
+- Next: 1) HWTEST beta.134 item (D810 + P5PE-VM MT-32, SBDIAG); 2) JEMM 5.87: bisect the hang (QEMU monitor regs at the
+  hang, JEMM debug build), report upstream; 3) AWE line: take third_party/mt32emu + makefile + win98/tools on its next sync.
+- Test downloads: munt (git tags 2_8_5/2_8_6), JemmB_v586/587.zip + Jemm git v5.86/v5.87pre1/v5.87, DJGPP v3.4, OW snapshot,
+  JWasm, pbatard/rufus; stores dos71, 86rig, personal.
+
 ## beta.133 (2026-11-27, DOS session): upstream SBEMU sync crazii 82c2d66..9df0421 (RELEASED, tag v1.0.0-beta.133-usb)
 - Parallel: Munt 2.8.6 + JEMM 5.87 = its own chat (next beta number); AWE sync = its own chat once both are tagged.
 - Taken: 11d5924 ADPCM crash (count max 2; testrig/adpcm/run.sh: beta.132 HANGS on 1-8 byte ADPCM blocks, beta.133
